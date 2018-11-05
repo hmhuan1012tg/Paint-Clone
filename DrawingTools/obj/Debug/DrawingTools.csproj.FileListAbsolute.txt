@@ -1,0 +1,7 @@
+C:\Users\doremobi\Documents\Visual Studio 2015\Projects\Paint_Clone\DrawingTools\bin\Debug\DrawingTools.dll
+C:\Users\doremobi\Documents\Visual Studio 2015\Projects\Paint_Clone\DrawingTools\bin\Debug\DrawingTools.pdb
+C:\Users\doremobi\Documents\Visual Studio 2015\Projects\Paint_Clone\DrawingTools\bin\Debug\DrawingObjects.dll
+C:\Users\doremobi\Documents\Visual Studio 2015\Projects\Paint_Clone\DrawingTools\bin\Debug\DrawingObjects.pdb
+C:\Users\doremobi\Documents\Visual Studio 2015\Projects\Paint_Clone\DrawingTools\obj\Debug\DrawingTools.csprojResolveAssemblyReference.cache
+C:\Users\doremobi\Documents\Visual Studio 2015\Projects\Paint_Clone\DrawingTools\obj\Debug\DrawingTools.dll
+C:\Users\doremobi\Documents\Visual Studio 2015\Projects\Paint_Clone\DrawingTools\obj\Debug\DrawingTools.pdb

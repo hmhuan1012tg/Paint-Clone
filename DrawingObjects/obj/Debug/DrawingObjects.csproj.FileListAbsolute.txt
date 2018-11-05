@@ -1,0 +1,5 @@
+C:\Users\doremobi\Documents\Visual Studio 2015\Projects\Paint_Clone\DrawingObjects\bin\Debug\DrawingObjects.dll
+C:\Users\doremobi\Documents\Visual Studio 2015\Projects\Paint_Clone\DrawingObjects\bin\Debug\DrawingObjects.pdb
+C:\Users\doremobi\Documents\Visual Studio 2015\Projects\Paint_Clone\DrawingObjects\obj\Debug\DrawingObjects.csprojResolveAssemblyReference.cache
+C:\Users\doremobi\Documents\Visual Studio 2015\Projects\Paint_Clone\DrawingObjects\obj\Debug\DrawingObjects.dll
+C:\Users\doremobi\Documents\Visual Studio 2015\Projects\Paint_Clone\DrawingObjects\obj\Debug\DrawingObjects.pdb
