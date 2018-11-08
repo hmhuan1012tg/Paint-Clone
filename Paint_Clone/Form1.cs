@@ -16,6 +16,7 @@ namespace Paint_Clone
     {
         ObjectList objectList;
         IDrawingTool tool;
+        Cursor usedCursor;
 
         public Form1()
         {
@@ -54,18 +55,67 @@ namespace Paint_Clone
             if (lineRadio.Checked)
             {
                 tool = new LineTool(objectList);
-                Cursor = Cursors.Cross;
+                usedCursor = Cursors.Cross;
             }
             else if (rectRadio.Checked)
             {
                 tool = new RectTool(objectList);
-                Cursor = Cursors.Cross;
+                usedCursor = Cursors.Cross;
+            }
+            else if (parallelogramRadio.Checked)
+            {
+                tool = new ParallelogramTool(objectList);
+                usedCursor = Cursors.Cross;
+            }
+            else if (polygonRadio.Checked)
+            {
+                tool = new PolygonTool(objectList);
+                usedCursor = Cursors.Cross;
+            }
+            else if (brokenLineRadio.Checked)
+            {
+                tool = new BrokenLineTool(objectList);
+                usedCursor = Cursors.Cross;
+            }
+            else if (circleArcRadio.Checked)
+            {
+                tool = new CircleArcTool(objectList);
+                usedCursor = Cursors.Cross;
+            }
+            else if (circleRadio.Checked)
+            {
+                tool = new CircleTool(objectList);
+                usedCursor = Cursors.Cross;
+            }
+            else if (ellipseRadio.Checked)
+            {
+                tool = new EllipseTool(objectList);
+                usedCursor = Cursors.Cross;
+            }
+            else if (ellipseArcRadio.Checked)
+            {
+                tool = new EllipseArcTool(objectList);
+                usedCursor = Cursors.Cross;
             }
             else if (selectRadio.Checked)
             {
                 tool = new SelectTool(objectList);
-                Cursor = Cursors.Arrow;
+                usedCursor = Cursors.Arrow;
             }
+
+            tool.setOwner(this);
+        }
+
+        private void pictureBox1_MouseLeave(object sender, EventArgs e)
+        {
+            if (tool != null)
+                tool.reset(sender);
+            Cursor = Cursors.Arrow;
+        }
+
+        private void pictureBox1_MouseEnter(object sender, EventArgs e)
+        {
+            Cursor = usedCursor;
         }
     }
 }

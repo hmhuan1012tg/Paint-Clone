@@ -9,14 +9,28 @@ using System.Windows.Forms;
 
 namespace DrawingObjects
 {
-    static class DrawingConstant
+    public static class DrawingUtilities
     {
         public const int CONTROL_RECT_SIZE = 6;
 
+        // create rectangle object centered at point p
         public static Rectangle CreateControlRect(Point p)
         {
             Point center = new Point(p.X - CONTROL_RECT_SIZE / 2, p.Y - CONTROL_RECT_SIZE / 2);
             return new Rectangle(center, new Size(CONTROL_RECT_SIZE, CONTROL_RECT_SIZE));
+        }
+
+        // draw control rectangle centered at point p
+        public static void DrawControlRect(PaintEventArgs e, Point p)
+        {
+            e.Graphics.FillRectangle(Brushes.White, CreateControlRect(p));
+            e.Graphics.DrawRectangle(Pens.Black, CreateControlRect(p));
+        }
+
+        // calculate small angle between two points on circle
+        public static float CalculateAngle(Point center, Point point)
+        {
+            return (float)Math.Atan2(point.Y - center.Y, point.X - center.X);
         }
     }
 
@@ -24,6 +38,11 @@ namespace DrawingObjects
     public abstract class IDrawingObject
     {
         private bool isFocus = false;
+        protected List<Point> controlPoints;
+
+        protected Color color = Color.Black;
+        protected bool filledWithColor = false;
+        protected Color fillColor = Color.Transparent;
 
         public bool isFocused()
         {
@@ -40,9 +59,57 @@ namespace DrawingObjects
             isFocus = false;
         }
 
-        public abstract void onDraw(PaintEventArgs e);
+        public void setOutlineColor(Color c)
+        {
+            color = c;
+        }
 
-        public abstract bool isVisible(Point location);
+        public void setFillColor(Color c)
+        {
+            if (color != Color.Transparent)
+            {
+                fillColor = c;
+                filledWithColor = true;
+            }
+        }
+
+        // interface for drawing object
+        public void onDraw(PaintEventArgs e)
+        {
+            Graphics g = e.Graphics;
+            Pen solidPen = new Pen(color, 2.0f);
+            derivedDraw(e, solidPen);
+
+            if (isFocused())
+                drawControlRects(e);
+
+            solidPen.Dispose();
+        }
+        // implements these to draw specific object
+        protected abstract void derivedDraw(PaintEventArgs e, Pen pen);
+        private void drawControlRects(PaintEventArgs e)
+        {
+            foreach (var point in controlPoints)
+                DrawingUtilities.DrawControlRect(e, point);
+        }
+
+        // interface for checking is "location" belongs to object
+        public bool isVisible(Point location)
+        {
+            GraphicsPath gPath = new GraphicsPath();
+            buildGraphicsPath(gPath);
+            if (isFocused())
+                addControlRectsToGraphicPath(gPath);
+
+            return gPath.IsOutlineVisible(location, new Pen(Brushes.Black, 10));
+        }
+        // implement these to build graphics path object to use for checking
+        protected abstract void buildGraphicsPath(GraphicsPath gPath);
+        private void addControlRectsToGraphicPath(GraphicsPath path)
+        {
+            foreach (var point in controlPoints)
+                path.AddRectangle(DrawingUtilities.CreateControlRect(point));
+        }
     }
 
     public class ObjectList
@@ -82,6 +149,7 @@ namespace DrawingObjects
         }
     }
 
+    // Duong thang
     public class Line : IDrawingObject
     {
         private Point firstPoint;
@@ -92,36 +160,26 @@ namespace DrawingObjects
             this.firstPoint = firstPoint;
             this.secondPoint = secondPoint;
 
+            controlPoints = new List<Point>();
+            controlPoints.Add(firstPoint);
+            controlPoints.Add(secondPoint);
+
             if (isFocus)
                 focus();
         }
 
-        public override void onDraw(PaintEventArgs e)
+        protected override void derivedDraw(PaintEventArgs e, Pen pen)
         {
-            Graphics g = e.Graphics;
-            Pen solidPen = new Pen(Color.Black, 2.0f);
-            e.Graphics.DrawLine(solidPen, firstPoint, secondPoint);
-
-            if (isFocused())
-            {
-                e.Graphics.FillRectangle(Brushes.White, DrawingConstant.CreateControlRect(firstPoint));
-                e.Graphics.DrawRectangle(Pens.Black, DrawingConstant.CreateControlRect(firstPoint));
-
-                e.Graphics.FillRectangle(Brushes.White, DrawingConstant.CreateControlRect(secondPoint));
-                e.Graphics.DrawRectangle(Pens.Black, DrawingConstant.CreateControlRect(secondPoint));
-            }
-
-            solidPen.Dispose();
+            e.Graphics.DrawLine(pen, firstPoint, secondPoint);
         }
 
-        public override bool isVisible(Point location)
+        protected override void buildGraphicsPath(GraphicsPath gPath)
         {
-            GraphicsPath gPath = new GraphicsPath();
             gPath.AddLine(firstPoint, secondPoint);
-            return gPath.IsOutlineVisible(location, new Pen(Brushes.Black, 10));
         }
     }
 
+    // Hinh chu nhat
     public class Rect : IDrawingObject
     {
         private Rectangle rect;
@@ -129,44 +187,321 @@ namespace DrawingObjects
         public Rect(Rectangle rect, bool isFocus = false)
         {
             this.rect = rect;
+            controlPoints = new List<Point>();
+            controlPoints.Add(new Point(rect.Left, rect.Top));
+            controlPoints.Add(new Point(rect.Right, rect.Top));
+            controlPoints.Add(new Point(rect.Left, rect.Bottom));
+            controlPoints.Add(new Point(rect.Right, rect.Bottom));
 
             if (isFocus)
                 focus();
         }
 
-        public override bool isVisible(Point location)
+        protected override void derivedDraw(PaintEventArgs e, Pen pen)
         {
-            GraphicsPath gPath = new GraphicsPath();
-            gPath.AddRectangle(rect);
-            return gPath.IsOutlineVisible(location, new Pen(Brushes.Black, 10));
+            e.Graphics.DrawRectangle(pen, rect);
         }
 
-        public override void onDraw(PaintEventArgs e)
+        protected override void buildGraphicsPath(GraphicsPath gPath)
         {
-            Graphics g = e.Graphics;
-            Pen solidPen = new Pen(Color.Black, 2.0f);
-            e.Graphics.DrawRectangle(solidPen, rect);
+            gPath.AddRectangle(rect);
+        }
+    }
 
-            if (isFocused())
+    // Hinh binh hanh
+    public class Parallelogram : IDrawingObject
+    {
+        public Parallelogram(Point[] controlPoints, bool isFocus = false)
+        {
+            this.controlPoints = new List<Point>();
+            for (int i = 0; i < 4; i++)
+                this.controlPoints.Add(controlPoints[i]);
+
+            if (isFocus)
+                focus();
+        }
+
+        protected override void derivedDraw(PaintEventArgs e, Pen pen)
+        {
+            e.Graphics.DrawPolygon(pen, controlPoints.ToArray());
+        }
+
+        protected override void buildGraphicsPath(GraphicsPath gPath)
+        {
+            gPath.AddPolygon(controlPoints.ToArray());
+        }
+    }
+
+    // Da giac
+    public class Polygon : IDrawingObject
+    {
+        public Polygon(List<Point> controlPoints, bool isFocus = false)
+        {
+            if (controlPoints != null)
+                this.controlPoints = controlPoints;
+            if (isFocus)
+                focus();
+        }
+
+        protected override void buildGraphicsPath(GraphicsPath gPath)
+        {
+            gPath.AddPolygon(controlPoints.ToArray());
+        }
+
+        protected override void derivedDraw(PaintEventArgs e, Pen pen)
+        {
+            e.Graphics.DrawPolygon(pen, controlPoints.ToArray());
+        }
+    }
+
+    // Duong gap khuc
+    public class BrokenLine : IDrawingObject
+    {
+        public BrokenLine(List<Point> controlPoints, bool isFocus = false)
+        {
+            this.controlPoints = controlPoints;
+
+            if (isFocus)
+                focus();
+        }
+
+        protected override void buildGraphicsPath(GraphicsPath gPath)
+        {
+            gPath.AddLines(controlPoints.ToArray());
+        }
+
+        protected override void derivedDraw(PaintEventArgs e, Pen pen)
+        {
+            e.Graphics.DrawLines(pen, controlPoints.ToArray());
+        }
+    }
+
+    // Cung tron
+    public class CircleArc : IDrawingObject
+    {
+        private Point center;
+        private Point[] pivot;
+        private bool smallPart;
+        private float radius;
+
+        public CircleArc(Point center, Point[] pivot, bool smallPart, float radius, bool isFocus = false)
+        {
+            this.center = center;
+            controlPoints = new List<Point>();
+            controlPoints.Add(center);
+
+            this.pivot = new Point[2];
+            for (int i = 0; i < 2; i++)
             {
-                Point topLeft = new Point(rect.Left, rect.Top);
-                e.Graphics.FillRectangle(Brushes.White, DrawingConstant.CreateControlRect(topLeft));
-                e.Graphics.DrawRectangle(Pens.Black, DrawingConstant.CreateControlRect(topLeft));
-
-                Point topRight = new Point(rect.Right, rect.Top);
-                e.Graphics.FillRectangle(Brushes.White, DrawingConstant.CreateControlRect(topRight));
-                e.Graphics.DrawRectangle(Pens.Black, DrawingConstant.CreateControlRect(topRight));
-
-                Point bottomLeft = new Point(rect.Left, rect.Bottom);
-                e.Graphics.FillRectangle(Brushes.White, DrawingConstant.CreateControlRect(bottomLeft));
-                e.Graphics.DrawRectangle(Pens.Black, DrawingConstant.CreateControlRect(bottomLeft));
-
-                Point bottomRight = new Point(rect.Right, rect.Bottom);
-                e.Graphics.FillRectangle(Brushes.White, DrawingConstant.CreateControlRect(bottomRight));
-                e.Graphics.DrawRectangle(Pens.Black, DrawingConstant.CreateControlRect(bottomRight));
+                this.pivot[i] = pivot[i];
+                controlPoints.Add(pivot[i]);
             }
 
-            solidPen.Dispose();
+            this.smallPart = smallPart;
+            this.radius = radius;
+
+            if (isFocus)
+                focus();
+        }
+
+        private void prepareDrawingData(out RectangleF rect, out float startAngle, out float sweepAngle)
+        {
+            rect = new RectangleF(center.X - radius, center.Y - radius, radius * 2, radius * 2);
+            startAngle = 180 * DrawingUtilities.CalculateAngle(center, pivot[0]) / (float)Math.PI;
+            float endAngle = 180 * DrawingUtilities.CalculateAngle(center, pivot[1]) / (float)Math.PI;
+            // if start angle is bigger than end angle
+            // swap them to make sure
+            // start angle is always smaller than end angle
+            if (startAngle > endAngle)
+            {
+                float tempAngle = startAngle;
+                startAngle = endAngle;
+                endAngle = tempAngle;
+            }
+
+            int sweepSign = 1;
+            sweepAngle = endAngle - startAngle;
+            if (smallPart && sweepAngle > (360 - sweepAngle))
+            {
+                sweepAngle = 360 - sweepAngle;
+                sweepSign = -1;
+            }
+            if (!smallPart && sweepAngle < (360 - sweepAngle))
+            {
+                sweepAngle = 360 - sweepAngle;
+                sweepSign = -1;
+            }
+            sweepAngle *= sweepSign;
+        }
+
+        protected override void buildGraphicsPath(GraphicsPath gPath)
+        {
+            RectangleF bound;
+            float startAngle;
+            float sweepAngle;
+            prepareDrawingData(out bound, out startAngle, out sweepAngle);
+
+            gPath.AddArc(bound, startAngle, sweepAngle);
+        }
+
+        protected override void derivedDraw(PaintEventArgs e, Pen pen)
+        {
+            RectangleF bound;
+            float startAngle;
+            float sweepAngle;
+            prepareDrawingData(out bound, out startAngle, out sweepAngle);
+
+            e.Graphics.DrawArc(pen, bound, startAngle, sweepAngle);
+        }
+    }
+
+    // Duong tron
+    public class Circle : IDrawingObject
+    {
+        private Point center;
+        private int radius;
+
+        public Circle(Point center, int radius, bool isFocus = false)
+        {
+            this.center = center;
+            this.radius = radius;
+
+            controlPoints = new List<Point>();
+            controlPoints.Add(new Point(center.X                               , center.Y - radius                      ));
+            controlPoints.Add(new Point(center.X + (int)(radius / Math.Sqrt(2)), center.Y - (int)(radius / Math.Sqrt(2))));
+            controlPoints.Add(new Point(center.X + radius                      , center.Y                               ));
+            controlPoints.Add(new Point(center.X + (int)(radius / Math.Sqrt(2)), center.Y + (int)(radius / Math.Sqrt(2))));
+            controlPoints.Add(new Point(center.X                               , center.Y + radius                      ));
+            controlPoints.Add(new Point(center.X - (int)(radius / Math.Sqrt(2)), center.Y + (int)(radius / Math.Sqrt(2))));
+            controlPoints.Add(new Point(center.X - radius                      , center.Y                               ));
+            controlPoints.Add(new Point(center.X - (int)(radius / Math.Sqrt(2)), center.Y - (int)(radius / Math.Sqrt(2))));
+
+            if (isFocus)
+                focus();
+        }
+
+        protected override void buildGraphicsPath(GraphicsPath gPath)
+        {
+            gPath.AddEllipse(new Rectangle(center.X - radius, center.Y - radius, radius * 2, radius * 2));
+        }
+
+        protected override void derivedDraw(PaintEventArgs e, Pen pen)
+        {
+            e.Graphics.DrawEllipse(pen, new Rectangle(center.X - radius, center.Y - radius, radius * 2, radius * 2));
+        }
+    }
+
+    // Duong Elip
+    public class Ellipse : IDrawingObject
+    {
+        private Point center;
+        private int a;
+        private int b;
+
+        public Ellipse(Point center, int a, int b, bool isFocus = false)
+        {
+            this.center = center;
+            this.a = a;
+            this.b = b;
+
+            controlPoints = new List<Point>();
+            controlPoints.Add(center);
+            controlPoints.Add(new Point(center.X, center.Y - b));
+            controlPoints.Add(new Point(center.X + a, center.Y));
+            controlPoints.Add(new Point(center.X, center.Y + b));
+            controlPoints.Add(new Point(center.X - a, center.Y));
+
+            if (isFocus)
+                focus();
+        }
+
+        protected override void buildGraphicsPath(GraphicsPath gPath)
+        {
+            gPath.AddEllipse(new Rectangle(center.X - a, center.Y - b, 2 * a, 2 * b));
+        }
+
+        protected override void derivedDraw(PaintEventArgs e, Pen pen)
+        {
+            e.Graphics.DrawEllipse(pen, new Rectangle(center.X - a, center.Y - b, 2 * a, 2 * b));
+        }
+    }
+
+    // Cung Elip
+    public class EllipseArc : IDrawingObject
+    {
+        private Point center;
+        private Point[] pivot;
+        private int a;
+        private int b;
+        private bool smallPart;
+
+        public EllipseArc(Point center, int a, int b, Point[] pivot, bool smallPart, bool isFocus = false)
+        {
+            controlPoints = new List<Point>();
+            controlPoints.Add(center);
+            controlPoints.Add(pivot[0]);
+            controlPoints.Add(pivot[1]);
+
+            this.center = center;
+            this.pivot = new Point[2];
+            this.pivot[0] = pivot[0];
+            this.pivot[1] = pivot[1];
+            this.a = a;
+            this.b = b;
+            this.smallPart = smallPart;
+
+            if (isFocus)
+                focus();
+        }
+
+        private void prepareDrawingData(out Rectangle bound, out float startAngle, out float sweepAngle)
+        {
+            bound = new Rectangle(center.X - a, center.Y - b, 2 * a, 2 * b);
+
+            startAngle = DrawingUtilities.CalculateAngle(center, pivot[0]) * 180 / (float)Math.PI;
+            float endAngle = DrawingUtilities.CalculateAngle(center, pivot[1]) * 180 / (float)Math.PI;
+            // if start angle is bigger than end angle
+            // swap them to make sure start angle is always smaller than end angle
+            if (startAngle > endAngle)
+            {
+                float tempAngle = startAngle;
+                startAngle = endAngle;
+                endAngle = tempAngle;
+            }
+
+            int sweepSign = 1;
+            sweepAngle = endAngle - startAngle;
+            if (smallPart && sweepAngle > 180)
+            {
+                sweepAngle = 360 - sweepAngle;
+                sweepSign = -1;
+            }
+            if (!smallPart && sweepAngle <= 180)
+            {
+                sweepAngle = 360 - sweepAngle;
+                sweepSign = -1;
+            }
+            sweepAngle *= sweepSign;
+        }
+
+        protected override void buildGraphicsPath(GraphicsPath gPath)
+        {
+            Rectangle bound;
+            float startAngle;
+            float sweepAngle;
+            prepareDrawingData(out bound, out startAngle, out sweepAngle);
+
+            gPath.AddArc(bound, startAngle, sweepAngle);
+        }
+
+        protected override void derivedDraw(PaintEventArgs e, Pen pen)
+        {
+            Rectangle bound;
+            float startAngle;
+            float sweepAngle;
+            prepareDrawingData(out bound, out startAngle, out sweepAngle);
+
+            e.Graphics.DrawArc(pen, bound, startAngle, sweepAngle);
         }
     }
 }
