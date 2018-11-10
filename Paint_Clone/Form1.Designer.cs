@@ -39,6 +39,9 @@
             this.circleRadio = new System.Windows.Forms.RadioButton();
             this.ellipseRadio = new System.Windows.Forms.RadioButton();
             this.ellipseArcRadio = new System.Windows.Forms.RadioButton();
+            this.bezierRadio = new System.Windows.Forms.RadioButton();
+            this.clearBtn = new System.Windows.Forms.Button();
+            this.newTextRadio = new System.Windows.Forms.RadioButton();
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox1)).BeginInit();
             this.SuspendLayout();
             // 
@@ -48,7 +51,7 @@
             this.pictureBox1.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
             this.pictureBox1.Location = new System.Drawing.Point(12, 58);
             this.pictureBox1.Name = "pictureBox1";
-            this.pictureBox1.Size = new System.Drawing.Size(971, 418);
+            this.pictureBox1.Size = new System.Drawing.Size(1160, 591);
             this.pictureBox1.TabIndex = 0;
             this.pictureBox1.TabStop = false;
             this.pictureBox1.Paint += new System.Windows.Forms.PaintEventHandler(this.pictureBox1_Paint);
@@ -72,7 +75,7 @@
             // selectRadio
             // 
             this.selectRadio.AutoSize = true;
-            this.selectRadio.Location = new System.Drawing.Point(781, 12);
+            this.selectRadio.Location = new System.Drawing.Point(975, 12);
             this.selectRadio.Name = "selectRadio";
             this.selectRadio.Size = new System.Drawing.Size(55, 17);
             this.selectRadio.TabIndex = 2;
@@ -177,12 +180,49 @@
             this.ellipseArcRadio.UseVisualStyleBackColor = true;
             this.ellipseArcRadio.CheckedChanged += new System.EventHandler(this.radio_CheckedChanged);
             // 
+            // bezierRadio
+            // 
+            this.bezierRadio.AutoSize = true;
+            this.bezierRadio.Location = new System.Drawing.Point(668, 12);
+            this.bezierRadio.Name = "bezierRadio";
+            this.bezierRadio.Size = new System.Drawing.Size(54, 17);
+            this.bezierRadio.TabIndex = 11;
+            this.bezierRadio.TabStop = true;
+            this.bezierRadio.Text = "Bezier";
+            this.bezierRadio.UseVisualStyleBackColor = true;
+            this.bezierRadio.CheckedChanged += new System.EventHandler(this.radio_CheckedChanged);
+            // 
+            // clearBtn
+            // 
+            this.clearBtn.Location = new System.Drawing.Point(1097, 9);
+            this.clearBtn.Name = "clearBtn";
+            this.clearBtn.Size = new System.Drawing.Size(75, 23);
+            this.clearBtn.TabIndex = 12;
+            this.clearBtn.Text = "Clear";
+            this.clearBtn.UseVisualStyleBackColor = true;
+            this.clearBtn.Click += new System.EventHandler(this.clearBtn_Click);
+            // 
+            // newTextRadio
+            // 
+            this.newTextRadio.AutoSize = true;
+            this.newTextRadio.Location = new System.Drawing.Point(728, 12);
+            this.newTextRadio.Name = "newTextRadio";
+            this.newTextRadio.Size = new System.Drawing.Size(71, 17);
+            this.newTextRadio.TabIndex = 13;
+            this.newTextRadio.TabStop = true;
+            this.newTextRadio.Text = "New Text";
+            this.newTextRadio.UseVisualStyleBackColor = true;
+            this.newTextRadio.CheckedChanged += new System.EventHandler(this.radio_CheckedChanged);
+            // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.SystemColors.ControlLight;
-            this.ClientSize = new System.Drawing.Size(995, 488);
+            this.ClientSize = new System.Drawing.Size(1184, 661);
+            this.Controls.Add(this.newTextRadio);
+            this.Controls.Add(this.clearBtn);
+            this.Controls.Add(this.bezierRadio);
             this.Controls.Add(this.ellipseArcRadio);
             this.Controls.Add(this.ellipseRadio);
             this.Controls.Add(this.circleRadio);
@@ -196,8 +236,11 @@
             this.Controls.Add(this.pictureBox1);
             this.DoubleBuffered = true;
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedSingle;
+            this.KeyPreview = true;
+            this.MaximizeBox = false;
             this.Name = "Form1";
             this.Text = "Form1";
+            this.KeyPress += new System.Windows.Forms.KeyPressEventHandler(this.Form1_KeyPress);
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox1)).EndInit();
             this.ResumeLayout(false);
             this.PerformLayout();
@@ -217,6 +260,9 @@
         private System.Windows.Forms.RadioButton circleRadio;
         private System.Windows.Forms.RadioButton ellipseRadio;
         private System.Windows.Forms.RadioButton ellipseArcRadio;
+        private System.Windows.Forms.RadioButton bezierRadio;
+        private System.Windows.Forms.Button clearBtn;
+        private System.Windows.Forms.RadioButton newTextRadio;
     }
 }
 

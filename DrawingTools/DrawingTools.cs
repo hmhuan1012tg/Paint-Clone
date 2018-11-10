@@ -317,7 +317,7 @@ namespace DrawingTools
             dashedPen.DashStyle = System.Drawing.Drawing2D.DashStyle.Dot;
 
             // draw dashed lines
-            g.DrawLines(dashedPen, controlPoints.ToArray());
+            g.DrawPolygon(dashedPen, controlPoints.ToArray());
 
             dashedPen.Dispose();
         }
@@ -498,8 +498,8 @@ namespace DrawingTools
                 }
 
                 float sweepAngle = endAngle - startAngle;
-                if((snapAngle >= startAngle && snapAngle <= endAngle && sweepAngle < (360 - sweepAngle))
-                || ((snapAngle < startAngle || snapAngle > endAngle) && sweepAngle > (360 - sweepAngle)))
+                if((snapAngle >= startAngle && snapAngle <= endAngle && sweepAngle <= 180)
+                || ((snapAngle < startAngle || snapAngle > endAngle) && sweepAngle > 180))
                 {
                     smallPart = true;
                 }
@@ -523,10 +523,17 @@ namespace DrawingTools
 
             // draw a line connecting first pivot and center
             g.DrawLine(dashedPen, center, pivot[0]);
+            if(pivotSnaps == 0)
+            {
+                int dx = pivot[0].X - center.X;
+                int dy = pivot[0].Y - center.Y;
+                radius = (float)Math.Sqrt(dx * dx + dy * dy);
+                g.DrawEllipse(dashedPen, center.X - radius, center.Y - radius, radius * 2, radius * 2);
+            }
 
             // if first pivot is chosen
             // it means that second pivot is being chosen
-            if(pivotSnaps > 0)
+            if (pivotSnaps > 0)
             {
                 g.DrawLine(dashedPen, center, pivot[1]);
 
@@ -547,12 +554,12 @@ namespace DrawingTools
 
                     int sweepSign = 1;
                     float sweepAngle = endAngle - startAngle;
-                    if (smallPart && sweepAngle > (360 - sweepAngle))
+                    if (smallPart && sweepAngle >= 180)
                     {
                         sweepAngle = 360 - sweepAngle;
                         sweepSign = -1;
                     }
-                    if (!smallPart && sweepAngle < (360 - sweepAngle))
+                    if (!smallPart && sweepAngle < 180)
                     {
                         sweepAngle = 360 - sweepAngle;
                         sweepSign = -1;
@@ -561,6 +568,10 @@ namespace DrawingTools
                     // draw the line connecting center and second pivot
                     // and the partial arc
                     g.DrawArc(dashedPen, bound, startAngle, sweepAngle * sweepSign);
+                }
+                else
+                {
+                    g.DrawEllipse(dashedPen, center.X - radius, center.Y - radius, radius * 2, radius * 2);
                 }
             }
             
@@ -606,16 +617,19 @@ namespace DrawingTools
             }
 
             // prepare circle object
-            int startX = Math.Min(firstPoint.X, secondPoint.X);
-            int startY = Math.Min(firstPoint.Y, secondPoint.Y);
+            int width = Math.Abs(firstPoint.X - secondPoint.X);
+            int height = Math.Abs(firstPoint.Y - secondPoint.Y);
+            int size = Math.Min(width, height);
 
-            int endX = Math.Max(firstPoint.X, secondPoint.X);
-            int endY = Math.Max(firstPoint.Y, secondPoint.Y);
+            int startX = firstPoint.X;
+            int startY = firstPoint.Y;
+            if (firstPoint.X > secondPoint.X)
+                startX = firstPoint.X - size;
+            if (firstPoint.Y > secondPoint.Y)
+                startY = firstPoint.Y - size;
+            Point center = new Point(startX + size / 2, startY + size / 2);
 
-            Point center = new Point((endX + startX) / 2, (endY + startY) / 2);
-            int radius = (endX - startX) / 2;
-
-            Circle circle = new Circle(center, radius, true);
+            Circle circle = new Circle(center, size / 2, true);
             objectList.add(circle);
             firstSnap = false;
             (sender as Control).Invalidate();
@@ -650,7 +664,9 @@ namespace DrawingTools
             if (firstPoint.Y > secondPoint.Y)
                 startY = firstPoint.Y - size;
 
-            g.DrawEllipse(dashedPen, new Rectangle(startX, startY, size, size));
+            Rectangle bound = new Rectangle(startX, startY, size, size);
+            g.DrawEllipse(dashedPen, bound);
+            g.DrawRectangle(dashedPen, bound);
 
             dashedPen.Dispose();
         }
@@ -730,7 +746,9 @@ namespace DrawingTools
             int endX = Math.Max(firstPoint.X, secondPoint.X);
             int endY = Math.Max(firstPoint.Y, secondPoint.Y);
 
-            g.DrawEllipse(dashedPen, new Rectangle(startX, startY, endX - startX, endY - startY));
+            Rectangle bound = new Rectangle(startX, startY, endX - startX, endY - startY);
+            g.DrawEllipse(dashedPen, bound);
+            g.DrawRectangle(dashedPen, bound);
 
             dashedPen.Dispose();
         }
@@ -895,12 +913,26 @@ namespace DrawingTools
                 int endX = Math.Max(firstPoint.X, secondPoint.X);
                 int endY = Math.Max(firstPoint.Y, secondPoint.Y);
 
-                g.DrawEllipse(dashedPen, new Rectangle(startX, startY, endX - startX, endY - startY));
+                Rectangle bound = new Rectangle(startX, startY, endX - startX, endY - startY);
+                g.DrawEllipse(dashedPen, bound);
+                g.DrawRectangle(dashedPen, bound);
                 return;
             }
 
             // draw a line connecting first pivot and center
             g.DrawLine(dashedPen, center, pivot[0]);
+            // draw ellipse
+            if(pivotSnaps < 2)
+            {
+                // draw dashed ellipse
+                int startX = Math.Min(firstPoint.X, secondPoint.X);
+                int startY = Math.Min(firstPoint.Y, secondPoint.Y);
+
+                int endX = Math.Max(firstPoint.X, secondPoint.X);
+                int endY = Math.Max(firstPoint.Y, secondPoint.Y);
+
+                g.DrawEllipse(dashedPen, new Rectangle(startX, startY, endX - startX, endY - startY));
+            }
 
             // if first pivot is chosen
             // it means that second pivot is being chosen
@@ -951,6 +983,178 @@ namespace DrawingTools
             secondSnap = false;
             pivotSnaps = 0;
             smallPart = false;
+            (sender as Control).Invalidate();
+        }
+    }
+
+    // Duong Bezier
+    public class BezierTool : IDrawingTool
+    {
+        private List<Point> controlPoints;
+        private int controlSnaps;
+
+        public BezierTool(ObjectList objectList)
+        {
+            this.objectList = objectList;
+
+            controlPoints = new List<Point>();
+            controlSnaps = 0;
+        }
+
+        public override void onMouseDown(object sender, MouseEventArgs e)
+        {
+            if(e.Button == MouseButtons.Right)
+            {
+                reset(sender);
+                return;
+            }
+
+            if (controlSnaps < 4)
+            {
+                controlPoints.Add(e.Location);
+                if (controlSnaps == 0)
+                    controlPoints.Add(e.Location);
+                controlSnaps++;
+                if (controlSnaps < 4)
+                    return;
+            }
+
+            // prepare bezier object
+            Bezier bezier = new Bezier(controlPoints, true);
+            // add bezier to object list for drawing onto picture box
+            objectList.add(bezier);
+
+            // redraw sender
+            (sender as Control).Invalidate();
+            // reset tool
+            controlPoints = new List<Point>();
+            controlSnaps = 0;
+        }
+
+        public override void onMouseMove(object sender, MouseEventArgs e)
+        {
+            if (controlSnaps == 0)
+                return;
+            controlPoints[controlSnaps] = e.Location;
+            (sender as Control).Invalidate();
+        }
+
+        public override void onPartialDraw(Graphics g)
+        {
+            if (controlSnaps == 0)
+                return;
+
+            Pen dottedPen = new Pen(Color.Black, 1.0f);
+            dottedPen.DashStyle = System.Drawing.Drawing2D.DashStyle.Dot;
+            g.DrawLines(dottedPen, controlPoints.ToArray());
+            dottedPen.Dispose();
+        }
+
+        public override void reset(object sender)
+        {
+            controlPoints.Clear();
+            controlSnaps = 0;
+            (sender as Control).Invalidate();
+        }
+    }
+
+    // Text
+    public class CreateTextTool : IDrawingTool
+    {
+        private Point origin;
+        private bool originSnap;
+        private SizeF textSize;
+        private StringBuilder builder;
+        private float resolutionX;
+        private float resolutionY;
+
+        public CreateTextTool(ObjectList objectList)
+        {
+            this.objectList = objectList;
+
+            originSnap = false;
+            builder = new StringBuilder();
+            builder.Append('_');
+        }
+
+        public override void onMouseDown(object sender, MouseEventArgs e)
+        {
+            if(e.Button == MouseButtons.Right)
+            {
+                reset(sender);
+                return;
+            }
+            if (!originSnap)
+            {
+                origin = e.Location;
+                originSnap = true;
+                (sender as Control).Invalidate();
+            }
+        }
+
+        public override void onMouseMove(object sender, MouseEventArgs e)
+        {
+        }
+
+        public void onKeyPress(object sender, KeyPressEventArgs e)
+        {
+            if (e.KeyChar == 27) // Escape
+            {
+                Font font = new Font(FontFamily.GenericMonospace, 30.0f, FontStyle.Regular);
+                StringFormat format = StringFormat.GenericDefault;
+                Text textObj = new Text(origin, builder.ToString().Substring(0, builder.Length - 1), textSize, font, format, true);
+                textObj.setResolutionX(resolutionX);
+                textObj.setResolutionY(resolutionY);
+                objectList.add(textObj);
+
+                originSnap = false;
+                builder.Length = 0;
+                builder.Append('_');
+            }
+            else if (e.KeyChar == 8) // Backspace
+            {
+                if (builder.Length > 1)
+                    builder.Remove(builder.Length - 2, 1);
+            }
+            else
+            {
+                if (e.KeyChar == '\n' || e.KeyChar == '\r')
+                    builder.Insert(builder.Length - 1, '\n');
+                else
+                    builder.Insert(builder.Length - 1, e.KeyChar);
+            }
+            (sender as Control).Invalidate();
+        }
+
+        public override void onPartialDraw(Graphics g)
+        {
+            if (originSnap)
+            {
+                // set resolution
+                resolutionX = g.DpiX;
+                resolutionY = g.DpiY;
+
+                // draw string
+                DrawingUtilities.DrawControlRect(g, origin);
+                Font font = new Font(FontFamily.GenericMonospace, 30.0f, FontStyle.Regular);
+                g.DrawString(builder.ToString(), font, Brushes.Black, origin);
+
+                // calculate and draw text bounding box
+                textSize = g.MeasureString(builder.ToString().Substring(0, builder.Length - 1), font);
+                SizeF tempTextSize = g.MeasureString(builder.ToString(), font);
+                Pen dottedPen = new Pen(Color.Black, 1.0f);
+                dottedPen.DashStyle = System.Drawing.Drawing2D.DashStyle.Dot;
+                Rectangle bound = new Rectangle(origin, tempTextSize.ToSize());
+                g.DrawRectangle(dottedPen, bound);
+                dottedPen.Dispose();
+            }
+        }
+
+        public override void reset(object sender)
+        {
+            originSnap = false;
+            builder.Length = 0;
+            builder.Append('_');
             (sender as Control).Invalidate();
         }
     }

@@ -97,6 +97,16 @@ namespace Paint_Clone
                 tool = new EllipseArcTool(objectList);
                 usedCursor = Cursors.Cross;
             }
+            else if (bezierRadio.Checked)
+            {
+                tool = new BezierTool(objectList);
+                usedCursor = Cursors.Cross;
+            }
+            else if (newTextRadio.Checked)
+            {
+                tool = new CreateTextTool(objectList);
+                usedCursor = Cursors.IBeam;
+            }
             else if (selectRadio.Checked)
             {
                 tool = new SelectTool(objectList);
@@ -108,14 +118,31 @@ namespace Paint_Clone
 
         private void pictureBox1_MouseLeave(object sender, EventArgs e)
         {
-            if (tool != null)
-                tool.reset(sender);
             Cursor = Cursors.Arrow;
+            if (tool != null && !newTextRadio.Checked)
+                tool.reset(sender);
         }
 
         private void pictureBox1_MouseEnter(object sender, EventArgs e)
         {
             Cursor = usedCursor;
+        }
+
+        private void clearBtn_Click(object sender, EventArgs e)
+        {
+            objectList.clear();
+            if (tool != null)
+                tool.reset(pictureBox1);
+            pictureBox1.Invalidate();
+            pictureBox1.Focus();
+        }
+
+        private void Form1_KeyPress(object sender, KeyPressEventArgs e)
+        {
+            if (newTextRadio.Checked)
+            {
+                (tool as CreateTextTool).onKeyPress(pictureBox1, e);
+            }
         }
     }
 }

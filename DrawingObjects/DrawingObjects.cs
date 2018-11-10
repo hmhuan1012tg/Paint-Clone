@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -21,10 +22,10 @@ namespace DrawingObjects
         }
 
         // draw control rectangle centered at point p
-        public static void DrawControlRect(PaintEventArgs e, Point p)
+        public static void DrawControlRect(Graphics g, Point p)
         {
-            e.Graphics.FillRectangle(Brushes.White, CreateControlRect(p));
-            e.Graphics.DrawRectangle(Pens.Black, CreateControlRect(p));
+            g.FillRectangle(Brushes.White, CreateControlRect(p));
+            g.DrawRectangle(Pens.Black, CreateControlRect(p));
         }
 
         // calculate small angle between two points on circle
@@ -43,6 +44,7 @@ namespace DrawingObjects
         protected Color color = Color.Black;
         protected bool filledWithColor = false;
         protected Color fillColor = Color.Transparent;
+
 
         public bool isFocused()
         {
@@ -73,24 +75,30 @@ namespace DrawingObjects
             }
         }
 
+        
+
         // interface for drawing object
         public void onDraw(PaintEventArgs e)
         {
             Graphics g = e.Graphics;
-            Pen solidPen = new Pen(color, 2.0f);
+            Pen solidPen = new Pen(color, 1.0f);
             derivedDraw(e, solidPen);
 
             if (isFocused())
+            {
+                derivedDrawLineBetweenControlPoints(e);
                 drawControlRects(e);
+            }
 
             solidPen.Dispose();
         }
         // implements these to draw specific object
         protected abstract void derivedDraw(PaintEventArgs e, Pen pen);
+        protected abstract void derivedDrawLineBetweenControlPoints(PaintEventArgs e);
         private void drawControlRects(PaintEventArgs e)
         {
             foreach (var point in controlPoints)
-                DrawingUtilities.DrawControlRect(e, point);
+                DrawingUtilities.DrawControlRect(e.Graphics, point);
         }
 
         // interface for checking is "location" belongs to object
@@ -101,7 +109,7 @@ namespace DrawingObjects
             if (isFocused())
                 addControlRectsToGraphicPath(gPath);
 
-            return gPath.IsOutlineVisible(location, new Pen(Brushes.Black, 10));
+            return gPath.IsOutlineVisible(location, new Pen(Brushes.Black, 15));
         }
         // implement these to build graphics path object to use for checking
         protected abstract void buildGraphicsPath(GraphicsPath gPath);
@@ -138,6 +146,11 @@ namespace DrawingObjects
         {
             foreach (var obj in list)
                 obj.defocus();
+        }
+
+        public void clear()
+        {
+            list.Clear();
         }
 
         public IDrawingObject getVisible(Point location)
@@ -177,6 +190,10 @@ namespace DrawingObjects
         {
             gPath.AddLine(firstPoint, secondPoint);
         }
+
+        protected override void derivedDrawLineBetweenControlPoints(PaintEventArgs e)
+        {
+        }
     }
 
     // Hinh chu nhat
@@ -206,6 +223,10 @@ namespace DrawingObjects
         {
             gPath.AddRectangle(rect);
         }
+
+        protected override void derivedDrawLineBetweenControlPoints(PaintEventArgs e)
+        {
+        }
     }
 
     // Hinh binh hanh
@@ -230,6 +251,10 @@ namespace DrawingObjects
         {
             gPath.AddPolygon(controlPoints.ToArray());
         }
+
+        protected override void derivedDrawLineBetweenControlPoints(PaintEventArgs e)
+        {
+        }
     }
 
     // Da giac
@@ -252,6 +277,10 @@ namespace DrawingObjects
         {
             e.Graphics.DrawPolygon(pen, controlPoints.ToArray());
         }
+
+        protected override void derivedDrawLineBetweenControlPoints(PaintEventArgs e)
+        {
+        }
     }
 
     // Duong gap khuc
@@ -273,6 +302,10 @@ namespace DrawingObjects
         protected override void derivedDraw(PaintEventArgs e, Pen pen)
         {
             e.Graphics.DrawLines(pen, controlPoints.ToArray());
+        }
+
+        protected override void derivedDrawLineBetweenControlPoints(PaintEventArgs e)
+        {
         }
     }
 
@@ -353,6 +386,15 @@ namespace DrawingObjects
 
             e.Graphics.DrawArc(pen, bound, startAngle, sweepAngle);
         }
+
+        protected override void derivedDrawLineBetweenControlPoints(PaintEventArgs e)
+        {
+            Pen dottedPen = new Pen(Color.Black, 1.0f);
+            dottedPen.DashStyle = DashStyle.Dot;
+            for (int i = 1; i < controlPoints.Count; i++)
+                e.Graphics.DrawLine(dottedPen, controlPoints[0], controlPoints[i]);
+            dottedPen.Dispose();
+        }
     }
 
     // Duong tron
@@ -367,6 +409,7 @@ namespace DrawingObjects
             this.radius = radius;
 
             controlPoints = new List<Point>();
+            controlPoints.Add(center);
             controlPoints.Add(new Point(center.X                               , center.Y - radius                      ));
             controlPoints.Add(new Point(center.X + (int)(radius / Math.Sqrt(2)), center.Y - (int)(radius / Math.Sqrt(2))));
             controlPoints.Add(new Point(center.X + radius                      , center.Y                               ));
@@ -388,6 +431,15 @@ namespace DrawingObjects
         protected override void derivedDraw(PaintEventArgs e, Pen pen)
         {
             e.Graphics.DrawEllipse(pen, new Rectangle(center.X - radius, center.Y - radius, radius * 2, radius * 2));
+        }
+
+        protected override void derivedDrawLineBetweenControlPoints(PaintEventArgs e)
+        {
+            Pen dottedPen = new Pen(Color.Black, 1.0f);
+            dottedPen.DashStyle = DashStyle.Dot;
+            for (int i = 1; i < controlPoints.Count; i++)
+                e.Graphics.DrawLine(dottedPen, controlPoints[0], controlPoints[i]);
+            dottedPen.Dispose();
         }
     }
 
@@ -423,6 +475,15 @@ namespace DrawingObjects
         protected override void derivedDraw(PaintEventArgs e, Pen pen)
         {
             e.Graphics.DrawEllipse(pen, new Rectangle(center.X - a, center.Y - b, 2 * a, 2 * b));
+        }
+
+        protected override void derivedDrawLineBetweenControlPoints(PaintEventArgs e)
+        {
+            Pen dottedPen = new Pen(Color.Black, 1.0f);
+            dottedPen.DashStyle = DashStyle.Dot;
+            for (int i = 1; i < controlPoints.Count; i++)
+                e.Graphics.DrawLine(dottedPen, controlPoints[0], controlPoints[i]);
+            dottedPen.Dispose();
         }
     }
 
@@ -502,6 +563,105 @@ namespace DrawingObjects
             prepareDrawingData(out bound, out startAngle, out sweepAngle);
 
             e.Graphics.DrawArc(pen, bound, startAngle, sweepAngle);
+        }
+
+        protected override void derivedDrawLineBetweenControlPoints(PaintEventArgs e)
+        {
+            Pen dottedPen = new Pen(Color.Black, 1.0f);
+            dottedPen.DashStyle = DashStyle.Dot;
+            for (int i = 1; i < controlPoints.Count; i++)
+                e.Graphics.DrawLine(dottedPen, controlPoints[0], controlPoints[i]);
+            dottedPen.Dispose();
+        }
+    }
+
+    // Duong Bezier
+    public class Bezier : IDrawingObject
+    {
+        public Bezier(List<Point> controlPoints, bool isFocus = false)
+        {
+            this.controlPoints = controlPoints;
+
+            if (isFocus)
+                focus();
+        }
+
+        protected override void buildGraphicsPath(GraphicsPath gPath)
+        {
+            gPath.AddBezier(controlPoints[0], controlPoints[1], controlPoints[2], controlPoints[3]);
+        }
+
+        protected override void derivedDraw(PaintEventArgs e, Pen pen)
+        {
+            e.Graphics.DrawBezier(pen, controlPoints[0], controlPoints[1], controlPoints[2], controlPoints[3]);
+        }
+
+        protected override void derivedDrawLineBetweenControlPoints(PaintEventArgs e)
+        {
+            Pen dottedPen = new Pen(Color.Black, 1.0f);
+            dottedPen.DashStyle = DashStyle.Dot;
+            e.Graphics.DrawLines(dottedPen, controlPoints.ToArray());
+            dottedPen.Dispose();
+        }
+    }
+
+    // Text
+    public class Text : IDrawingObject
+    {
+        private Point origin;
+        private string text;
+        private SizeF textSize;
+        private Font font;
+        private StringFormat format;
+
+        private float resolutionX;
+        private float resolutionY;
+
+        public Text(Point origin, string text, SizeF textSize, Font font, StringFormat format, bool isFocus = false)
+        {
+            this.origin = origin;
+            this.text = text;
+            this.textSize = textSize;
+            this.font = font;
+            this.format = format;
+            controlPoints = new List<Point>();
+            controlPoints.Add(origin);
+            controlPoints.Add(new Point(origin.X + (int)textSize.Width, origin.Y                       ));
+            controlPoints.Add(new Point(origin.X + (int)textSize.Width, origin.Y + (int)textSize.Height));
+            controlPoints.Add(new Point(origin.X                      , origin.Y + (int)textSize.Height));
+
+            if (isFocus)
+                focus();
+        }
+
+        public void setResolutionX(float resolutionX)
+        {
+            this.resolutionX = resolutionX;
+        }
+
+        public void setResolutionY(float resolutionY)
+        {
+            this.resolutionY = resolutionY;
+        }
+
+        protected override void buildGraphicsPath(GraphicsPath gPath)
+        {
+            gPath.AddString(text, font.FontFamily, (int)font.Style, font.Size * resolutionY / 72, origin, format);
+            gPath.AddRectangle(DrawingUtilities.CreateControlRect(origin));
+        }
+
+        protected override void derivedDraw(PaintEventArgs e, Pen pen)
+        {
+            Brush brush = new SolidBrush(pen.Color);
+            e.Graphics.DrawString(text, font, brush, origin);
+        }
+
+        protected override void derivedDrawLineBetweenControlPoints(PaintEventArgs e)
+        {
+            Pen dottedPen = new Pen(Color.Black, 1.0f);
+            dottedPen.DashStyle = DashStyle.Dot;
+            e.Graphics.DrawPolygon(dottedPen, controlPoints.ToArray());
+            dottedPen.Dispose();
         }
     }
 }
