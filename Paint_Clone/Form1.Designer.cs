@@ -46,6 +46,7 @@
             this.deleteRadio = new System.Windows.Forms.RadioButton();
             this.controlRadio = new System.Windows.Forms.RadioButton();
             this.scaleRadio = new System.Windows.Forms.RadioButton();
+            this.rotateRadio = new System.Windows.Forms.RadioButton();
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox1)).BeginInit();
             this.SuspendLayout();
             // 
@@ -266,12 +267,25 @@
             this.scaleRadio.UseVisualStyleBackColor = true;
             this.scaleRadio.CheckedChanged += new System.EventHandler(this.radio_CheckedChanged);
             // 
+            // rotateRadio
+            // 
+            this.rotateRadio.AutoSize = true;
+            this.rotateRadio.Location = new System.Drawing.Point(979, 35);
+            this.rotateRadio.Name = "rotateRadio";
+            this.rotateRadio.Size = new System.Drawing.Size(57, 17);
+            this.rotateRadio.TabIndex = 18;
+            this.rotateRadio.TabStop = true;
+            this.rotateRadio.Text = "Rotate";
+            this.rotateRadio.UseVisualStyleBackColor = true;
+            this.rotateRadio.CheckedChanged += new System.EventHandler(this.radio_CheckedChanged);
+            // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.SystemColors.ControlLight;
             this.ClientSize = new System.Drawing.Size(1184, 661);
+            this.Controls.Add(this.rotateRadio);
             this.Controls.Add(this.scaleRadio);
             this.Controls.Add(this.controlRadio);
             this.Controls.Add(this.deleteRadio);
@@ -323,6 +337,7 @@
         private System.Windows.Forms.RadioButton deleteRadio;
         private System.Windows.Forms.RadioButton controlRadio;
         private System.Windows.Forms.RadioButton scaleRadio;
+        private System.Windows.Forms.RadioButton rotateRadio;
     }
 }
 

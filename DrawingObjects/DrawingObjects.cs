@@ -79,7 +79,8 @@ namespace DrawingObjects
 
         // transformation
         // all transformation for drawing shape
-        protected Matrix rotate = new Matrix();
+        private Matrix rotationMatrix = new Matrix();
+        public float angle = 0;
 
         public bool isFocused()
         {
@@ -108,9 +109,11 @@ namespace DrawingObjects
 
         public Point getControlPointLocation(int index)
         {
-            if (index < 0 || index >= controlPoints.Count)
+            Point[] points = controlPoints.ToArray();
+            rotationMatrix.TransformPoints(points);
+            if (index < 0 || index >= points.Length)
                 return new Point();
-            return controlPoints[index];
+            return points[index];
         }
 
         // interface for drawing object
@@ -120,13 +123,17 @@ namespace DrawingObjects
             if (penNotSpecified)
                 pen = borderPen;
 
+            g.MultiplyTransform(rotationMatrix);
             derivedDraw(g, pen);
 
             if (isFocused())
             {
                 derivedDrawLineBetweenControlPoints(g);
-                drawControlRects(g);
+                g.ResetTransform();
+                drawControlRects(g, rotationMatrix);
             }
+
+            g.ResetTransform();
         }
         public void onDraw(Graphics g, Matrix transform, Pen pen = null)
         {
@@ -183,6 +190,7 @@ namespace DrawingObjects
             if (isFocused())
                 addControlRectsToGraphicPath(gPath);
 
+            gPath.Transform(rotationMatrix);
             if (brush != null && isFillable)
                 return gPath.IsVisible(location);
             return gPath.IsOutlineVisible(location, new Pen(Brushes.Black, 15));
@@ -193,6 +201,7 @@ namespace DrawingObjects
             for (int i = 0; i < controlPoints.Count; i++)
             {
                 gp.AddRectangle(DrawingUtilities.CreateControlRect(controlPoints[i]));
+                gp.Transform(rotationMatrix);
                 if (gp.IsOutlineVisible(location, new Pen(Brushes.Black, 10)))
                     return i;
                 gp.Reset();
@@ -224,11 +233,20 @@ namespace DrawingObjects
             Matrix translate = new Matrix();
             translate.Translate(xOffset, yOffset);
             transform(translate);
+
+            rotationMatrix.Reset();
+            rotationMatrix.RotateAt(angle, getCentralPoint());
         }
 
         // interface for cloning object
         // that has offset with current object
-        public abstract IDrawingObject clone();
+        public IDrawingObject clone()
+        {
+            IDrawingObject obj = derivedClone();
+            obj.angle = angle;
+            return obj;
+        }
+        protected abstract IDrawingObject derivedClone();
 
         // interface for controlling object
         // using control points
@@ -250,6 +268,9 @@ namespace DrawingObjects
             scale.Translate(-central.X, -central.Y);
             transform(scale);
             derivedScale(xFactor, yFactor);
+
+            rotationMatrix.Reset();
+            rotationMatrix.RotateAt(angle, getCentralPoint());
         }
         protected virtual void derivedScale(float xFactor, float yFactor) { }
         public virtual Point getCentralPoint()
@@ -263,6 +284,23 @@ namespace DrawingObjects
             output.X /= controlPoints.Count;
             output.Y /= controlPoints.Count;
             return output;
+        }
+
+        // rotate object
+        public void rotate(float angle)
+        {
+            Point central = getCentralPoint();
+            this.angle += angle;
+            rotationMatrix.Reset();
+            rotationMatrix.RotateAt(this.angle, central);
+        }
+        public Point invertRotation(Point p)
+        {
+            Point[] tempList = new Point[] { p };
+            Matrix invert = rotationMatrix.Clone();
+            invert.Invert();
+            invert.TransformPoints(tempList);
+            return tempList[0];
         }
     }
 
@@ -355,7 +393,7 @@ namespace DrawingObjects
         }
 
         // cloning
-        public override IDrawingObject clone()
+        protected override IDrawingObject derivedClone()
         {
             return new Line(controlPoints[0], controlPoints[1]);
         }
@@ -419,7 +457,7 @@ namespace DrawingObjects
         }
 
         // cloning
-        public override IDrawingObject clone()
+        protected override IDrawingObject derivedClone()
         {
             Size size = new Size(controlPoints[2].X - controlPoints[0].X, controlPoints[2].Y - controlPoints[0].Y);
             return new Rect(new Rectangle(controlPoints[0], size));
@@ -505,7 +543,7 @@ namespace DrawingObjects
         }
 
         // cloning
-        public override IDrawingObject clone()
+        protected override IDrawingObject derivedClone()
         {
             return new Parallelogram(controlPoints.ToArray());
         }
@@ -578,7 +616,7 @@ namespace DrawingObjects
         }
 
         // cloning
-        public override IDrawingObject clone()
+        protected override IDrawingObject derivedClone()
         {
             List<Point> newList = new List<Point>(controlPoints.Count);
             foreach (var point in controlPoints)
@@ -632,7 +670,7 @@ namespace DrawingObjects
         }
 
         // cloning
-        public override IDrawingObject clone()
+        protected override IDrawingObject derivedClone()
         {
             List<Point> newList = new List<Point>(controlPoints.Count);
             foreach (var point in controlPoints)
@@ -743,7 +781,7 @@ namespace DrawingObjects
         }
 
         // cloning
-        public override IDrawingObject clone()
+        protected override IDrawingObject derivedClone()
         {
             return new CircleArc(controlPoints[0], new Point[] { controlPoints[1], controlPoints[2] }, smallPart, radius);
         }
@@ -816,7 +854,7 @@ namespace DrawingObjects
         }
 
         // cloning
-        public override IDrawingObject clone()
+        protected override IDrawingObject derivedClone()
         {
             return new Circle(controlPoints[0], radius);
         }
@@ -894,7 +932,7 @@ namespace DrawingObjects
         }
 
         // cloning
-        public override IDrawingObject clone()
+        protected override IDrawingObject derivedClone()
         {
             return new Ellipse(controlPoints[0], a, b);
         }
@@ -1008,7 +1046,7 @@ namespace DrawingObjects
         }
 
         // cloning
-        public override IDrawingObject clone()
+        protected override IDrawingObject derivedClone()
         {
             return new EllipseArc(controlPoints[0], a, b, new Point[] { controlPoints[1], controlPoints[2] }, smallPart);
         }
@@ -1066,7 +1104,7 @@ namespace DrawingObjects
         }
 
         // cloning
-        public override IDrawingObject clone()
+        protected override IDrawingObject derivedClone()
         {
             List<Point> newList = new List<Point>(controlPoints.Count);
             foreach (var point in controlPoints)
@@ -1135,7 +1173,7 @@ namespace DrawingObjects
         }
 
         // cloning
-        public override IDrawingObject clone()
+        protected override IDrawingObject derivedClone()
         {
             return new Text(controlPoints[0], text, new Font(font, font.Style), new StringFormat(format));
         }

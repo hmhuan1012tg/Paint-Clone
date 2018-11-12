@@ -132,6 +132,11 @@ namespace Paint_Clone
                 tool = new ScaleTool(objectList);
                 usedCursor = Cursors.SizeAll;
             }
+            else if (rotateRadio.Checked)
+            {
+                tool = new RotateTool(objectList);
+                usedCursor = Cursors.Hand;
+            }
 
             pictureBox1.Invalidate();
             tool.setOwner(this);

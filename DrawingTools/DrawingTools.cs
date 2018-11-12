@@ -1256,9 +1256,9 @@ namespace DrawingTools
             Pen dottedPen = new Pen(Color.Gray, 1.0f);
             dottedPen.DashStyle = DashStyle.Dot;
 
-            Matrix translate = new Matrix();
-            translate.Translate(newLocation.X - oldLocation.X, newLocation.Y - oldLocation.Y);
-            chosenObject.onDraw(g, translate, dottedPen);
+            IDrawingObject clone = chosenObject.clone();
+            clone.move(newLocation.X - oldLocation.X, newLocation.Y - oldLocation.Y);
+            clone.onDraw(g, dottedPen);
 
             dottedPen.Dispose();
         }
@@ -1507,7 +1507,7 @@ namespace DrawingTools
                 int index = chosenObject.visibleControlPointIndex(e.Location);
                 if (index >= 0 && chosenObject.controllablePoint(index))
                 {
-                    oldLocation = chosenObject.getControlPointLocation(index);
+                    oldLocation = chosenObject.invertRotation(chosenObject.getControlPointLocation(index));
                     controlSnap = true;
                 }
                 return;
@@ -1532,7 +1532,7 @@ namespace DrawingTools
             if (!controlSnap)
                 return;
 
-            newLocation = e.Location;
+            newLocation = chosenObject.invertRotation(e.Location);
 
             (sender as Control).Invalidate();
         }
@@ -1551,6 +1551,129 @@ namespace DrawingTools
 
             IDrawingObject clone = chosenObject.clone();
             clone.scale(xFactor, yFactor);
+            clone.focus();
+            clone.onDraw(g, dottedPen);
+
+            dottedPen.Dispose();
+        }
+
+        public override void reset(object sender)
+        {
+            controlSnap = false;
+            if (chosenObject != null)
+            {
+                chosenObject.defocus();
+                chosenObject = null;
+            }
+            (sender as Control).Invalidate();
+        }
+    }
+
+    // Scale Tool
+    public class RotateTool : IDrawingTool
+    {
+        private IDrawingObject chosenObject;
+        private Point central;
+        private Point oldLocation;
+        private Point newLocation;
+        private bool controlSnap;
+
+        public RotateTool(ObjectList objectList)
+        {
+            this.objectList = objectList;
+            objectList.defocusAll();
+
+            chosenObject = null;
+            controlSnap = false;
+        }
+
+        private float calculateAngle(Point central, Point oldLocation, Point newLocation)
+        {
+            float oldAngle = DrawingUtilities.CalculateAngle(central, oldLocation) * 180 / (float)Math.PI;
+            float newAngle = DrawingUtilities.CalculateAngle(central, newLocation) * 180 / (float)Math.PI;
+            return newAngle - oldAngle;
+        }
+
+        public override void onMouseDown(object sender, MouseEventArgs e)
+        {
+            // if right click
+            // defocus chosen object
+            if (e.Button == MouseButtons.Right)
+            {
+                reset(sender);
+                return;
+            }
+
+            // choose control point
+            if (!controlSnap)
+            {
+                // if no object is chosen
+                // choose one
+                IDrawingObject visibleObj = objectList.getVisible(e.Location);
+
+                if (visibleObj != null && !ReferenceEquals(visibleObj, chosenObject))
+                {
+                    chosenObject = visibleObj;
+                    central = chosenObject.getCentralPoint();
+                    if (!chosenObject.isFocused())
+                    {
+                        objectList.defocusAll();
+                        chosenObject.focus();
+                        (sender as Control).Invalidate();
+                    }
+                    return;
+                }
+                else if (visibleObj == null)
+                {
+                    chosenObject = null;
+                    objectList.defocusAll();
+                    (sender as Control).Invalidate();
+                    return;
+                }
+
+                int index = chosenObject.visibleControlPointIndex(e.Location);
+                if (index >= 0 && chosenObject.controllablePoint(index))
+                {
+                    oldLocation = chosenObject.getControlPointLocation(index);
+                    controlSnap = true;
+                }
+                return;
+            }
+
+            // else, user has specified new location
+            // calculate angle between old and new location
+            // and rotate chosen object using that angle
+            float angle = calculateAngle(chosenObject.getCentralPoint(), oldLocation, newLocation);
+            chosenObject.rotate(angle);
+            (sender as Control).Invalidate();
+
+            // reset
+            controlSnap = false;
+        }
+
+        public override void onMouseMove(object sender, MouseEventArgs e)
+        {
+            if (!controlSnap)
+                return;
+
+            newLocation = e.Location;
+
+            (sender as Control).Invalidate();
+        }
+
+        public override void onPartialDraw(Graphics g)
+        {
+            if (!controlSnap)
+                return;
+
+            // calculate angle between old location and new location
+            float angle = calculateAngle(chosenObject.getCentralPoint(), oldLocation, newLocation);
+
+            Pen dottedPen = new Pen(Color.Gray, 1.0f);
+            dottedPen.DashStyle = DashStyle.Dot;
+
+            IDrawingObject clone = chosenObject.clone();
+            clone.rotate(angle);
             clone.focus();
             clone.onDraw(g, dottedPen);
 
