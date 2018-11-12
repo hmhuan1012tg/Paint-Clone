@@ -474,11 +474,7 @@ namespace DrawingTools
                 pivot[pivotSnaps] = e.Location;
 
                 if(pivotSnaps == 1)
-                {
-                    float endAngle = DrawingUtilities.CalculateAngle(center, pivot[1]);
-                    pivot[1].X = (int)(radius * Math.Cos(endAngle)) + center.X;
-                    pivot[1].Y = (int)(radius * Math.Sin(endAngle)) + center.Y;
-                }
+                    pivot[1] = DrawingUtilities.Restrict(center, radius, e.Location);
             }
 
             // both pivot are chosen
@@ -848,18 +844,7 @@ namespace DrawingTools
             // choosing pivot points
             if (pivotSnaps < 2)
             {
-                pivot[pivotSnaps] = e.Location;
-
-                float angle = DrawingUtilities.CalculateAngle(center, pivot[pivotSnaps]);
-                int a2 = a * a;
-                int b2 = b * b;
-                float sin2 = (float)(Math.Sin(angle) * Math.Sin(angle));
-                float cos2 = (float)(Math.Cos(angle) * Math.Cos(angle));
-                float radius = (float)Math.Sqrt(a2 * b2 / (b2 * cos2 + a2 * sin2));
-
-                pivot[pivotSnaps].X = (int)(radius * Math.Cos(angle)) + center.X;
-                pivot[pivotSnaps].Y = (int)(radius * Math.Sin(angle)) + center.Y;
-
+                pivot[pivotSnaps] = DrawingUtilities.Restrict(center, a, b, e.Location);
                 (sender as Control).Invalidate();
                 return;
             }
@@ -1438,6 +1423,36 @@ namespace DrawingTools
             controlSnap = false;
         }
 
+        private void calculateScalingFactors(out float xFactor, out float yFactor)
+        {
+            xFactor = yFactor = 1;
+            // calculate xFactor and yFactor
+            if (chosenObject is Circle || chosenObject is CircleArc)
+            {
+                float oldLength = DrawingUtilities.CalculateLength(oldLocation, central);
+                float newLength = DrawingUtilities.CalculateLength(newLocation, central);
+
+                xFactor = yFactor = newLength / oldLength;
+                if ((newLocation.X - central.X) * (oldLocation.X - central.X) <= 0)
+                    xFactor = -xFactor;
+                if ((newLocation.Y - central.Y) * (oldLocation.Y - central.Y) <= 0)
+                    yFactor = -yFactor;
+            }
+            else
+            {
+                if (oldLocation.X == central.X && oldLocation.Y == central.Y)
+                    return;
+                if (oldLocation.Y != central.Y)
+                    yFactor = (float)(newLocation.Y - central.Y) / (oldLocation.Y - central.Y);
+                if (oldLocation.X != central.X)
+                    xFactor = (float)(newLocation.X - central.X) / (oldLocation.X - central.X);
+                if (xFactor == 0)
+                    xFactor = 1;
+                if (yFactor == 0)
+                    yFactor = 1;
+            }
+        }
+
         public override void onMouseDown(object sender, MouseEventArgs e)
         {
             // if right click
@@ -1478,7 +1493,7 @@ namespace DrawingTools
                 int index = chosenObject.visibleControlPointIndex(e.Location);
                 if (index >= 0 && chosenObject.controllablePoint(index))
                 {
-                    oldLocation = e.Location;
+                    oldLocation = chosenObject.getControlPointLocation(index);
                     controlSnap = true;
                 }
                 return;
@@ -1486,20 +1501,15 @@ namespace DrawingTools
 
             // else, user has specified new location
             // scale object using xFactor and yFactor
-            if (oldLocation.X == central.X || oldLocation.Y == central.Y)
-                return;
-            float xFactor = (float)(newLocation.X - central.X) / (oldLocation.X - central.X);
-            float yFactor = (float)(newLocation.Y - central.Y) / (oldLocation.Y - central.Y);
-            if (chosenObject is Circle || chosenObject is CircleArc)
-            {
-                float oldLength = DrawingUtilities.CalculateLength(oldLocation, central);
-                float newLength = DrawingUtilities.CalculateLength(newLocation, central);
+            // calculate xFactor and yFactor
+            float xFactor, yFactor;
+            calculateScalingFactors(out xFactor, out yFactor);
 
-                xFactor = yFactor = newLength / oldLength;
-            }
+            // check for validity
             if (xFactor == 0 || yFactor == 0)
                 return;
 
+            // scale obect
             chosenObject.scale(xFactor, yFactor);
             (sender as Control).Invalidate();
 
@@ -1521,20 +1531,11 @@ namespace DrawingTools
             if (!controlSnap)
                 return;
 
-            if (oldLocation.X == central.X || oldLocation.Y == central.Y)
-                return;
+            // calculate xFactor and yFactor
+            float xFactor, yFactor;
+            calculateScalingFactors(out xFactor, out yFactor);
 
-            float xFactor = (float)(newLocation.X - central.X) / (oldLocation.X - central.X);
-            float yFactor = (float)(newLocation.Y - central.Y) / (oldLocation.Y - central.Y);
-
-            if (chosenObject is Circle || chosenObject is CircleArc)
-            {
-                float oldLength = DrawingUtilities.CalculateLength(oldLocation, central);
-                float newLength = DrawingUtilities.CalculateLength(newLocation, central);
-
-                xFactor = yFactor = newLength / oldLength;
-            }
-
+            // check for validity
             if (xFactor == 0 || yFactor == 0)
                 return;
 
@@ -1543,6 +1544,7 @@ namespace DrawingTools
 
             IDrawingObject clone = chosenObject.clone();
             clone.scale(xFactor, yFactor);
+            clone.focus();
             clone.onDraw(g, dottedPen);
 
             dottedPen.Dispose();

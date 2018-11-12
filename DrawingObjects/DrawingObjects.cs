@@ -42,6 +42,28 @@ namespace DrawingObjects
             int dy = start.Y - end.Y;
             return (float)Math.Sqrt(dx * dx + dy * dy);
         }
+
+        // Restrict a point to be on a circle or an ellipse
+        public static Point Restrict(Point center, float radius, Point toRestrict)
+        {
+            float endAngle = DrawingUtilities.CalculateAngle(center, toRestrict);
+            toRestrict.X = (int)(radius * Math.Cos(endAngle)) + center.X;
+            toRestrict.Y = (int)(radius * Math.Sin(endAngle)) + center.Y;
+            return toRestrict;
+        }
+        public static Point Restrict(Point center, int a, int b, Point toRestrict)
+        {
+            float angle = DrawingUtilities.CalculateAngle(center, toRestrict);
+            int a2 = a * a;
+            int b2 = b * b;
+            float sin2 = (float)(Math.Sin(angle) * Math.Sin(angle));
+            float cos2 = (float)(Math.Cos(angle) * Math.Cos(angle));
+            float radius = (float)Math.Sqrt(a2 * b2 / (b2 * cos2 + a2 * sin2));
+
+            toRestrict.X = (int)(radius * Math.Cos(angle)) + center.X;
+            toRestrict.Y = (int)(radius * Math.Sin(angle)) + center.Y;
+            return toRestrict;
+        }
     }
 
     // TODO: implements Z-Index
@@ -90,6 +112,13 @@ namespace DrawingObjects
             {
                 filledWithColor = false;
             }
+        }
+
+        public Point getControlPointLocation(int index)
+        {
+            if (index < 0 || index >= controlPoints.Count)
+                return new Point();
+            return controlPoints[index];
         }
 
         // interface for drawing object
@@ -623,23 +652,16 @@ namespace DrawingObjects
     // Cung tron
     public class CircleArc : IDrawingObject
     {
-        private Point center;
-        private Point[] pivot;
         private bool smallPart;
         private float radius;
 
         public CircleArc(Point center, Point[] pivot, bool smallPart, float radius, bool isFocus = false)
         {
-            this.center = center;
             controlPoints = new List<Point>();
             controlPoints.Add(center);
 
-            this.pivot = new Point[2];
             for (int i = 0; i < 2; i++)
-            {
-                this.pivot[i] = pivot[i];
                 controlPoints.Add(pivot[i]);
-            }
 
             this.smallPart = smallPart;
             this.radius = radius;
@@ -662,9 +684,9 @@ namespace DrawingObjects
         // drawing
         private void prepareDrawingData(out RectangleF rect, out float startAngle, out float sweepAngle)
         {
-            rect = new RectangleF(center.X - radius, center.Y - radius, radius * 2, radius * 2);
-            startAngle = 180 * DrawingUtilities.CalculateAngle(center, pivot[0]) / (float)Math.PI;
-            float endAngle = 180 * DrawingUtilities.CalculateAngle(center, pivot[1]) / (float)Math.PI;
+            rect = new RectangleF(controlPoints[0].X - radius, controlPoints[0].Y - radius, radius * 2, radius * 2);
+            startAngle = 180 * DrawingUtilities.CalculateAngle(controlPoints[0], controlPoints[1]) / (float)Math.PI;
+            float endAngle = 180 * DrawingUtilities.CalculateAngle(controlPoints[0], controlPoints[2]) / (float)Math.PI;
             // if start angle is bigger than end angle
             // swap them to make sure
             // start angle is always smaller than end angle
@@ -723,7 +745,7 @@ namespace DrawingObjects
         // cloning
         public override IDrawingObject clone()
         {
-            return new CircleArc(center, pivot, smallPart, radius);
+            return new CircleArc(controlPoints[0], new Point[] { controlPoints[1], controlPoints[2] }, smallPart, radius);
         }
 
         // controlling
@@ -732,30 +754,20 @@ namespace DrawingObjects
             return index != 0;
         }
 
-        // transforming
-        protected override void transform(Matrix matrix)
-        {
-            base.transform(matrix);
-            Point[] list = new Point[3];
-            list[0] = center;
-            list[1] = pivot[0];
-            list[2] = pivot[1];
-            matrix.TransformPoints(list);
-
-            center = list[0];
-            pivot[0] = list[1];
-            pivot[1] = list[2];
-        }
-
         // scaling
         public override Point getCentralPoint()
         {
-            return center;
+            return controlPoints[0];
         }
         protected override void derivedScale(float xFactor, float yFactor)
         {
             base.derivedScale(xFactor, yFactor);
-            radius = (int)(Math.Min(xFactor, yFactor) * radius);
+            xFactor = Math.Abs(xFactor);
+            yFactor = Math.Abs(yFactor);
+            radius = (Math.Min(xFactor, yFactor) * radius);
+
+            for (int i = 1; i < controlPoints.Count; i++)
+                controlPoints[i] = DrawingUtilities.Restrict(controlPoints[0], radius, controlPoints[i]);
         }
     }
 
@@ -845,13 +857,11 @@ namespace DrawingObjects
     // Duong Elip
     public class Ellipse : IDrawingObject
     {
-        private Point center;
         private int a;
         private int b;
 
         public Ellipse(Point center, int a, int b, bool isFocus = false)
         {
-            this.center = center;
             this.a = a;
             this.b = b;
 
@@ -869,13 +879,13 @@ namespace DrawingObjects
         // choosing
         protected override void buildGraphicsPath(GraphicsPath gPath)
         {
-            gPath.AddEllipse(new Rectangle(center.X - a, center.Y - b, 2 * a, 2 * b));
+            gPath.AddEllipse(new Rectangle(controlPoints[0].X - a, controlPoints[0].Y - b, 2 * a, 2 * b));
         }
 
         // drawing
         protected override void derivedDraw(Graphics g, Pen pen)
         {
-            g.DrawEllipse(pen, new Rectangle(center.X - a, center.Y - b, 2 * a, 2 * b));
+            g.DrawEllipse(pen, new Rectangle(controlPoints[0].X - a, controlPoints[0].Y - b, 2 * a, 2 * b));
         }
         protected override void derivedDrawLineBetweenControlPoints(Graphics g)
         {
@@ -889,7 +899,7 @@ namespace DrawingObjects
         // cloning
         public override IDrawingObject clone()
         {
-            return new Ellipse(center, a, b);
+            return new Ellipse(controlPoints[0], a, b);
         }
 
         // controlling
@@ -898,35 +908,30 @@ namespace DrawingObjects
             return index != 0;
         }
 
-        // transforming
-        protected override void transform(Matrix matrix)
-        {
-            base.transform(matrix);
-            Point[] list = new Point[1];
-            list[0] = center;
-            matrix.TransformPoints(list);
-
-            center = list[0];
-        }
-
         // scaling
         public override Point getCentralPoint()
         {
-            return center;
+            return controlPoints[0];
         }
         protected override void derivedScale(float xFactor, float yFactor)
         {
             base.derivedScale(xFactor, yFactor);
             a = (int)(xFactor * a);
             b = (int)(yFactor * b);
+
+            Point center = getCentralPoint();
+            controlPoints.Clear();
+            controlPoints.Add(center);
+            controlPoints.Add(new Point(center.X, center.Y - b));
+            controlPoints.Add(new Point(center.X + a, center.Y));
+            controlPoints.Add(new Point(center.X, center.Y + b));
+            controlPoints.Add(new Point(center.X - a, center.Y));
         }
     }
 
     // Cung Elip
     public class EllipseArc : IDrawingObject
     {
-        private Point center;
-        private Point[] pivot;
         private int a;
         private int b;
         private bool smallPart;
@@ -938,10 +943,6 @@ namespace DrawingObjects
             controlPoints.Add(pivot[0]);
             controlPoints.Add(pivot[1]);
 
-            this.center = center;
-            this.pivot = new Point[2];
-            this.pivot[0] = pivot[0];
-            this.pivot[1] = pivot[1];
             this.a = a;
             this.b = b;
             this.smallPart = smallPart;
@@ -964,10 +965,10 @@ namespace DrawingObjects
         // drawing
         private void prepareDrawingData(out Rectangle bound, out float startAngle, out float sweepAngle)
         {
-            bound = new Rectangle(center.X - a, center.Y - b, 2 * a, 2 * b);
+            bound = new Rectangle(controlPoints[0].X - a, controlPoints[0].Y - b, 2 * a, 2 * b);
 
-            startAngle = DrawingUtilities.CalculateAngle(center, pivot[0]) * 180 / (float)Math.PI;
-            float endAngle = DrawingUtilities.CalculateAngle(center, pivot[1]) * 180 / (float)Math.PI;
+            startAngle = DrawingUtilities.CalculateAngle(controlPoints[0], controlPoints[1]) * 180 / (float)Math.PI;
+            float endAngle = DrawingUtilities.CalculateAngle(controlPoints[0], controlPoints[2]) * 180 / (float)Math.PI;
             // if start angle is bigger than end angle
             // swap them to make sure start angle is always smaller than end angle
             if (startAngle > endAngle)
@@ -1012,7 +1013,7 @@ namespace DrawingObjects
         // cloning
         public override IDrawingObject clone()
         {
-            return new EllipseArc(center, a, b, pivot, smallPart);
+            return new EllipseArc(controlPoints[0], a, b, new Point[] { controlPoints[1], controlPoints[2] }, smallPart);
         }
 
         // controlling
@@ -1021,31 +1022,19 @@ namespace DrawingObjects
             return index != 0;
         }
 
-        // transforming
-        protected override void transform(Matrix matrix)
-        {
-            base.transform(matrix);
-            Point[] list = new Point[3];
-            list[0] = center;
-            list[1] = pivot[0];
-            list[2] = pivot[1];
-            matrix.TransformPoints(list);
-
-            center = list[0];
-            pivot[0] = list[1];
-            pivot[1] = list[2];
-        }
-
         // scaling
         public override Point getCentralPoint()
         {
-            return center;
+            return controlPoints[0];
         }
         protected override void derivedScale(float xFactor, float yFactor)
         {
             base.derivedScale(xFactor, yFactor);
-            a = (int)(xFactor * a);
-            b = (int)(yFactor * b);
+            a = (int)(Math.Abs(xFactor) * a);
+            b = (int)(Math.Abs(yFactor) * b);
+
+            controlPoints[1] = DrawingUtilities.Restrict(controlPoints[0], a, b, controlPoints[1]);
+            controlPoints[2] = DrawingUtilities.Restrict(controlPoints[0], a, b, controlPoints[2]);
         }
     }
 
@@ -1157,7 +1146,23 @@ namespace DrawingObjects
         // controlling
         public override bool controllablePoint(int index)
         {
-            return index == 0;
+            return index != 0;
+        }
+
+        // scaling
+        protected override void derivedScale(float xFactor, float yFactor)
+        {
+            base.derivedScale(xFactor, yFactor);
+            font = new Font(font.FontFamily, Math.Abs(yFactor) * font.Size, font.Style);
+
+            Size textSize = TextRenderer.MeasureText(text, font);
+            Point central = getCentralPoint();
+
+            controlPoints.Clear();
+            controlPoints.Add(new Point(central.X - textSize.Width / 2, central.Y - textSize.Height / 2));
+            controlPoints.Add(new Point(central.X + textSize.Width / 2, central.Y - textSize.Height / 2));
+            controlPoints.Add(new Point(central.X + textSize.Width / 2, central.Y + textSize.Height / 2));
+            controlPoints.Add(new Point(central.X - textSize.Width / 2, central.Y + textSize.Height / 2));
         }
     }
 }
