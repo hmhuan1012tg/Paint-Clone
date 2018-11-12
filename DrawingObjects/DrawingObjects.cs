@@ -73,9 +73,9 @@ namespace DrawingObjects
         protected List<Point> controlPoints;
 
         // color
-        protected Color color = Color.Black;
-        protected bool filledWithColor = false;
-        protected Color fillColor = Color.Transparent;
+        protected Pen borderPen = new Pen(Color.Black, 1.0f);
+        protected bool isFillable = false;
+        protected Brush brush = null;
 
         // transformation
         // all transformation for drawing shape
@@ -98,20 +98,12 @@ namespace DrawingObjects
 
         public void setOutlineColor(Color c)
         {
-            color = c;
+            borderPen.Color = c;
         }
 
-        public void setFillColor(Color c)
+        public void setBrush(Brush brush)
         {
-            if (color != Color.Transparent)
-            {
-                fillColor = c;
-                filledWithColor = true;
-            }
-            else
-            {
-                filledWithColor = false;
-            }
+            this.brush = brush;
         }
 
         public Point getControlPointLocation(int index)
@@ -126,7 +118,7 @@ namespace DrawingObjects
         {
             bool penNotSpecified = pen == null;
             if (penNotSpecified)
-                pen = new Pen(color, 1.0f);
+                pen = borderPen;
 
             derivedDraw(g, pen);
 
@@ -135,15 +127,12 @@ namespace DrawingObjects
                 derivedDrawLineBetweenControlPoints(g);
                 drawControlRects(g);
             }
-
-            if (penNotSpecified)
-                pen.Dispose();
         }
         public void onDraw(Graphics g, Matrix transform, Pen pen = null)
         {
             bool penNotSpecified = pen == null;
             if (penNotSpecified)
-                pen = new Pen(color, 1.0f);
+                pen = borderPen;
 
             g.MultiplyTransform(transform);
             derivedDraw(g, pen);
@@ -156,15 +145,12 @@ namespace DrawingObjects
             }
 
             g.ResetTransform();
-
-            if (penNotSpecified)
-                pen.Dispose();
         }
         public void onDraw(Graphics g, int index, Point location, Pen pen = null)
         {
             bool penNotSpecified = pen == null;
             if (penNotSpecified)
-                pen = new Pen(color, 1.0f);
+                pen = borderPen;
 
             derivedDraw(g, pen, index, location);
 
@@ -173,9 +159,6 @@ namespace DrawingObjects
                 derivedDrawLineBetweenControlPoints(g, index, location);
                 drawControlRects(g);
             }
-
-            if (penNotSpecified)
-                pen.Dispose();
         }
         // implements these to draw specific object
         protected abstract void derivedDraw(Graphics g, Pen pen);
@@ -185,7 +168,10 @@ namespace DrawingObjects
         protected virtual void derivedDrawLineBetweenControlPoints(Graphics g, int index, Point location) { }
         private void drawControlRects(Graphics g, Matrix transform = null)
         {
-            foreach (var point in controlPoints)
+            Point[] points = controlPoints.ToArray();
+            if (transform != null)
+                transform.TransformPoints(points);
+            foreach (var point in points)
                 DrawingUtilities.DrawControlRect(g, point);
         }
 
@@ -197,6 +183,8 @@ namespace DrawingObjects
             if (isFocused())
                 addControlRectsToGraphicPath(gPath);
 
+            if (brush != null && isFillable)
+                return gPath.IsVisible(location);
             return gPath.IsOutlineVisible(location, new Pen(Brushes.Black, 15));
         }
         public int visibleControlPointIndex(Point location)
@@ -205,7 +193,7 @@ namespace DrawingObjects
             for (int i = 0; i < controlPoints.Count; i++)
             {
                 gp.AddRectangle(DrawingUtilities.CreateControlRect(controlPoints[i]));
-                if (gp.IsVisible(location))
+                if (gp.IsOutlineVisible(location, new Pen(Brushes.Black, 10)))
                     return i;
                 gp.Reset();
             }
@@ -220,8 +208,8 @@ namespace DrawingObjects
                 path.AddRectangle(DrawingUtilities.CreateControlRect(point));
         }
 
-        // transform object
-        protected virtual void transform(Matrix matrix)
+        // transform object's control points
+        protected void transform(Matrix matrix)
         {
             Point[] controls = controlPoints.ToArray();
             matrix.TransformPoints(controls);
@@ -261,7 +249,6 @@ namespace DrawingObjects
             scale.Scale(xFactor, yFactor);
             scale.Translate(-central.X, -central.Y);
             transform(scale);
-
             derivedScale(xFactor, yFactor);
         }
         protected virtual void derivedScale(float xFactor, float yFactor) { }
@@ -324,6 +311,15 @@ namespace DrawingObjects
                     return obj;
             return null;
         }
+
+        public List<IDrawingObject> getAllVisible(Point location)
+        {
+            List<IDrawingObject> output = new List<IDrawingObject>();
+            foreach (var obj in list)
+                if (obj.isVisible(location))
+                    output.Add(obj);
+            return output;
+        }
     }
 
     // Duong thang
@@ -377,6 +373,8 @@ namespace DrawingObjects
     {
         public Rect(Rectangle rect, bool isFocus = false)
         {
+            isFillable = true;
+
             controlPoints = new List<Point>();
             controlPoints.Add(new Point(rect.Left, rect.Top));
             controlPoints.Add(new Point(rect.Right, rect.Top));
@@ -390,6 +388,8 @@ namespace DrawingObjects
         // drawing
         protected override void derivedDraw(Graphics g, Pen pen)
         {
+            if (brush != null && isFillable)
+                g.FillPolygon(brush, controlPoints.ToArray());
             g.DrawPolygon(pen, controlPoints.ToArray());
         }
         protected override void derivedDraw(Graphics g, Pen pen, int index, Point location)
@@ -826,9 +826,6 @@ namespace DrawingObjects
         {
             return index != 0;
         }
-
-        // transforming
-        protected override void transform(Matrix matrix) { }
 
         // scaling
         public override Point getCentralPoint()

@@ -30,10 +30,10 @@ namespace Paint_Clone
         private void pictureBox1_Paint(object sender, PaintEventArgs e)
         {
             e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.HighQuality;
-            if (tool != null)
-                tool.onPartialDraw(e.Graphics);
 
             objectList.drawAll(e);
+            if (tool != null)
+                tool.onPartialDraw(e.Graphics);
         }
 
         private void pictureBox1_MouseDown(object sender, MouseEventArgs e)

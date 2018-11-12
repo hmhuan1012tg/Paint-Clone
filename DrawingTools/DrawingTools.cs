@@ -16,6 +16,10 @@ namespace DrawingTools
         protected Form owner;
         protected ObjectList objectList;
 
+        // color
+        protected Brush brush;
+        protected Color borderColor;
+
         public void setOwner(Form owner)
         {
             this.owner = owner;
@@ -128,10 +132,12 @@ namespace DrawingTools
             int endX = Math.Max(firstPoint.X, secondPoint.X);
             int endY = Math.Max(firstPoint.Y, secondPoint.Y);
 
-            Rectangle rect = new Rectangle(startX, startY, endX - startX + 1, endY - startY + 1);
+            Rectangle bound = new Rectangle(startX, startY, endX - startX + 1, endY - startY + 1);
 
             // add rectangle object to list for drawing onto picturebox
-            objectList.add(new Rect(rect, true));
+            Rect rect = new Rect(bound, true);
+            rect.setBrush(new SolidBrush(Color.Yellow));
+            objectList.add(rect);
             (sender as Control).Invalidate();
             firstSnap = false;
         }
@@ -451,6 +457,8 @@ namespace DrawingTools
                     int dx = pivot[0].X - center.X;
                     int dy = pivot[0].Y - center.Y;
                     radius = (float)Math.Sqrt(dx * dx + dy * dy);
+                    if (radius < 0.1f)
+                        return;
                 }
                 pivotSnaps++;
                 return;
@@ -516,7 +524,7 @@ namespace DrawingTools
 
             // prepare dashed pen
             Pen dashedPen = new Pen(Color.Black, 1.0f);
-            dashedPen.DashStyle = System.Drawing.Drawing2D.DashStyle.Dot;
+            dashedPen.DashStyle = DashStyle.Dot;
 
             // draw a line connecting first pivot and center
             g.DrawLine(dashedPen, center, pivot[0]);
@@ -804,17 +812,21 @@ namespace DrawingTools
             }
             if (!secondSnap)
             {
-                secondSnap = true;
                 a = Math.Abs(firstPoint.X - secondPoint.X) / 2;
                 b = Math.Abs(firstPoint.Y - secondPoint.Y) / 2;
                 center.X = (firstPoint.X + secondPoint.X) / 2;
                 center.Y = (firstPoint.Y + secondPoint.Y) / 2;
+                if (a < 5 || b < 5)
+                    return;
+                secondSnap = true;
                 return;
             }
 
             // choose pivot points
             if (pivotSnaps < 2)
             {
+                if (pivotSnaps == 1 && pivot[0].Equals(e.Location))
+                    return;
                 pivotSnaps++;
                 return;
             }
@@ -888,7 +900,7 @@ namespace DrawingTools
 
             // prepare dashed pen
             Pen dashedPen = new Pen(Color.Black, 1.0f);
-            dashedPen.DashStyle = System.Drawing.Drawing2D.DashStyle.Dot;
+            dashedPen.DashStyle = DashStyle.Dot;
 
             if (!secondSnap)
             {
@@ -1154,10 +1166,11 @@ namespace DrawingTools
 
         public override void onMouseDown(object sender, MouseEventArgs e)
         {
-            IDrawingObject obj = objectList.getVisible(e.Location);
+            List<IDrawingObject> objList = objectList.getAllVisible(e.Location);
             objectList.defocusAll();
-            if (obj != null)
-                obj.focus();
+            if (objList.Count > 0)
+                foreach (var obj in objList)
+                    obj.focus();
             (sender as Control).Invalidate();
         }
 
@@ -1433,9 +1446,9 @@ namespace DrawingTools
                 float newLength = DrawingUtilities.CalculateLength(newLocation, central);
 
                 xFactor = yFactor = newLength / oldLength;
-                if ((newLocation.X - central.X) * (oldLocation.X - central.X) <= 0)
+                if ((newLocation.X - central.X) * (oldLocation.X - central.X) < 0)
                     xFactor = -xFactor;
-                if ((newLocation.Y - central.Y) * (oldLocation.Y - central.Y) <= 0)
+                if ((newLocation.Y - central.Y) * (oldLocation.Y - central.Y) < 0)
                     yFactor = -yFactor;
             }
             else
@@ -1446,11 +1459,12 @@ namespace DrawingTools
                     yFactor = (float)(newLocation.Y - central.Y) / (oldLocation.Y - central.Y);
                 if (oldLocation.X != central.X)
                     xFactor = (float)(newLocation.X - central.X) / (oldLocation.X - central.X);
-                if (xFactor == 0)
-                    xFactor = 1;
-                if (yFactor == 0)
-                    yFactor = 1;
             }
+
+            if (Math.Abs(xFactor) < 0.1)
+                xFactor = xFactor < 0 ? -0.1f : 0.1f;
+            if (Math.Abs(yFactor) < 0.1)
+                yFactor = yFactor < 0 ? -0.1f : 0.1f;
         }
 
         public override void onMouseDown(object sender, MouseEventArgs e)
@@ -1505,10 +1519,6 @@ namespace DrawingTools
             float xFactor, yFactor;
             calculateScalingFactors(out xFactor, out yFactor);
 
-            // check for validity
-            if (xFactor == 0 || yFactor == 0)
-                return;
-
             // scale obect
             chosenObject.scale(xFactor, yFactor);
             (sender as Control).Invalidate();
@@ -1523,6 +1533,7 @@ namespace DrawingTools
                 return;
 
             newLocation = e.Location;
+
             (sender as Control).Invalidate();
         }
 
@@ -1534,10 +1545,6 @@ namespace DrawingTools
             // calculate xFactor and yFactor
             float xFactor, yFactor;
             calculateScalingFactors(out xFactor, out yFactor);
-
-            // check for validity
-            if (xFactor == 0 || yFactor == 0)
-                return;
 
             Pen dottedPen = new Pen(Color.Gray, 1.0f);
             dottedPen.DashStyle = DashStyle.Dot;
