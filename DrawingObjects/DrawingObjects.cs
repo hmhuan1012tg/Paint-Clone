@@ -8,6 +8,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
+
 namespace DrawingObjects
 {
     public static class DrawingUtilities
@@ -33,6 +34,14 @@ namespace DrawingObjects
         {
             return (float)Math.Atan2(point.Y - center.Y, point.X - center.X);
         }
+
+        // calculate length from one point to another
+        public static float CalculateLength(Point start, Point end)
+        {
+            int dx = start.X - end.X;
+            int dy = start.Y - end.Y;
+            return (float)Math.Sqrt(dx * dx + dy * dy);
+        }
     }
 
     // TODO: implements Z-Index
@@ -41,10 +50,14 @@ namespace DrawingObjects
         private bool isFocus = false;
         protected List<Point> controlPoints;
 
+        // color
         protected Color color = Color.Black;
         protected bool filledWithColor = false;
         protected Color fillColor = Color.Transparent;
 
+        // transformation
+        // all transformation for drawing shape
+        protected Matrix rotate = new Matrix();
 
         public bool isFocused()
         {
@@ -73,32 +86,78 @@ namespace DrawingObjects
                 fillColor = c;
                 filledWithColor = true;
             }
+            else
+            {
+                filledWithColor = false;
+            }
         }
 
-        
-
         // interface for drawing object
-        public void onDraw(PaintEventArgs e)
+        public void onDraw(Graphics g, Pen pen = null)
         {
-            Graphics g = e.Graphics;
-            Pen solidPen = new Pen(color, 1.0f);
-            derivedDraw(e, solidPen);
+            bool penNotSpecified = pen == null;
+            if (penNotSpecified)
+                pen = new Pen(color, 1.0f);
+
+            derivedDraw(g, pen);
 
             if (isFocused())
             {
-                derivedDrawLineBetweenControlPoints(e);
-                drawControlRects(e);
+                derivedDrawLineBetweenControlPoints(g);
+                drawControlRects(g);
             }
 
-            solidPen.Dispose();
+            if (penNotSpecified)
+                pen.Dispose();
+        }
+        public void onDraw(Graphics g, Matrix transform, Pen pen = null)
+        {
+            bool penNotSpecified = pen == null;
+            if (penNotSpecified)
+                pen = new Pen(color, 1.0f);
+
+            g.MultiplyTransform(transform);
+            derivedDraw(g, pen);
+
+            if (isFocused())
+            {
+                derivedDrawLineBetweenControlPoints(g);
+                g.ResetTransform();
+                drawControlRects(g, transform);
+            }
+
+            g.ResetTransform();
+
+            if (penNotSpecified)
+                pen.Dispose();
+        }
+        public void onDraw(Graphics g, int index, Point location, Pen pen = null)
+        {
+            bool penNotSpecified = pen == null;
+            if (penNotSpecified)
+                pen = new Pen(color, 1.0f);
+
+            derivedDraw(g, pen, index, location);
+
+            if (isFocused())
+            {
+                derivedDrawLineBetweenControlPoints(g, index, location);
+                drawControlRects(g);
+            }
+
+            if (penNotSpecified)
+                pen.Dispose();
         }
         // implements these to draw specific object
-        protected abstract void derivedDraw(PaintEventArgs e, Pen pen);
-        protected abstract void derivedDrawLineBetweenControlPoints(PaintEventArgs e);
-        private void drawControlRects(PaintEventArgs e)
+        protected abstract void derivedDraw(Graphics g, Pen pen);
+        protected virtual void derivedDraw(Graphics g, Pen pen, int index, Point location) { } // TODO: change to abstract
+
+        protected virtual void derivedDrawLineBetweenControlPoints(Graphics g) { }
+        protected virtual void derivedDrawLineBetweenControlPoints(Graphics g, int index, Point location) { }
+        private void drawControlRects(Graphics g, Matrix transform = null)
         {
             foreach (var point in controlPoints)
-                DrawingUtilities.DrawControlRect(e.Graphics, point);
+                DrawingUtilities.DrawControlRect(g, point);
         }
 
         // interface for checking is "location" belongs to object
@@ -111,12 +170,83 @@ namespace DrawingObjects
 
             return gPath.IsOutlineVisible(location, new Pen(Brushes.Black, 15));
         }
+        public int visibleControlPointIndex(Point location)
+        {
+            GraphicsPath gp = new GraphicsPath();
+            for (int i = 0; i < controlPoints.Count; i++)
+            {
+                gp.AddRectangle(DrawingUtilities.CreateControlRect(controlPoints[i]));
+                if (gp.IsVisible(location))
+                    return i;
+                gp.Reset();
+            }
+            return -1;
+        }
+
         // implement these to build graphics path object to use for checking
         protected abstract void buildGraphicsPath(GraphicsPath gPath);
         private void addControlRectsToGraphicPath(GraphicsPath path)
         {
             foreach (var point in controlPoints)
                 path.AddRectangle(DrawingUtilities.CreateControlRect(point));
+        }
+
+        // transform object
+        protected virtual void transform(Matrix matrix)
+        {
+            Point[] controls = controlPoints.ToArray();
+            matrix.TransformPoints(controls);
+            for (int i = 0; i < controlPoints.Count; i++)
+                controlPoints[i] = controls[i];
+        }
+
+        // move object
+        // prepend translation matrix
+        public void move(int xOffset, int yOffset)
+        {
+            Matrix translate = new Matrix();
+            translate.Translate(xOffset, yOffset);
+            transform(translate);
+        }
+
+        // interface for cloning object
+        // that has offset with current object
+        public abstract IDrawingObject clone();
+
+        // interface for controlling object
+        // using control points
+        public virtual bool controllablePoint(int index) { return true; }
+        // TODO: change to abstract
+        public virtual IDrawingObject changeControlPoint(int index, Point newLocation)
+        {
+            return this;
+        }
+
+        // scale object
+        // using scaling factor
+        public void scale(float xFactor, float yFactor)
+        {
+            Point central = getCentralPoint();
+            Matrix scale = new Matrix();
+            scale.Translate(central.X, central.Y);
+            scale.Scale(xFactor, yFactor);
+            scale.Translate(-central.X, -central.Y);
+            transform(scale);
+
+            derivedScale(xFactor, yFactor);
+        }
+        protected virtual void derivedScale(float xFactor, float yFactor) { }
+        public virtual Point getCentralPoint()
+        {
+            Point output = new Point();
+            foreach(var point in controlPoints)
+            {
+                output.X += point.X;
+                output.Y += point.Y;
+            }
+            output.X /= controlPoints.Count;
+            output.Y /= controlPoints.Count;
+            return output;
         }
     }
 
@@ -136,10 +266,15 @@ namespace DrawingObjects
             list.Add(obj);
         }
 
+        public void remove(IDrawingObject obj)
+        {
+            list.Remove(obj);
+        }
+
         public void drawAll(PaintEventArgs e)
         {
             foreach (var obj in list)
-                obj.onDraw(e);
+                obj.onDraw(e.Graphics);
         }
 
         public void defocusAll()
@@ -165,14 +300,8 @@ namespace DrawingObjects
     // Duong thang
     public class Line : IDrawingObject
     {
-        private Point firstPoint;
-        private Point secondPoint;
-
         public Line(Point firstPoint, Point secondPoint, bool isFocus = false)
         {
-            this.firstPoint = firstPoint;
-            this.secondPoint = secondPoint;
-
             controlPoints = new List<Point>();
             controlPoints.Add(firstPoint);
             controlPoints.Add(secondPoint);
@@ -181,51 +310,115 @@ namespace DrawingObjects
                 focus();
         }
 
-        protected override void derivedDraw(PaintEventArgs e, Pen pen)
+        // drawing
+        protected override void derivedDraw(Graphics g, Pen pen)
         {
-            e.Graphics.DrawLine(pen, firstPoint, secondPoint);
+            g.DrawLine(pen, controlPoints[0], controlPoints[1]);
+        }
+        protected override void derivedDraw(Graphics g, Pen pen, int index, Point location)
+        {
+            if (index == 0)
+                g.DrawLine(pen, location, controlPoints[1]);
+            else if (index == 1)
+                g.DrawLine(pen, controlPoints[0], location);
         }
 
+        // choosing
         protected override void buildGraphicsPath(GraphicsPath gPath)
         {
-            gPath.AddLine(firstPoint, secondPoint);
+            gPath.AddLine(controlPoints[0], controlPoints[1]);
         }
 
-        protected override void derivedDrawLineBetweenControlPoints(PaintEventArgs e)
+        // cloning
+        public override IDrawingObject clone()
         {
+            return new Line(controlPoints[0], controlPoints[1]);
+        }
+
+        // controlling
+        public override IDrawingObject changeControlPoint(int index, Point newLocation)
+        {
+            controlPoints[index] = newLocation;
+            return this;
         }
     }
 
     // Hinh chu nhat
     public class Rect : IDrawingObject
     {
-        private Rectangle rect;
-
         public Rect(Rectangle rect, bool isFocus = false)
         {
-            this.rect = rect;
             controlPoints = new List<Point>();
             controlPoints.Add(new Point(rect.Left, rect.Top));
             controlPoints.Add(new Point(rect.Right, rect.Top));
-            controlPoints.Add(new Point(rect.Left, rect.Bottom));
             controlPoints.Add(new Point(rect.Right, rect.Bottom));
+            controlPoints.Add(new Point(rect.Left, rect.Bottom));
 
             if (isFocus)
                 focus();
         }
 
-        protected override void derivedDraw(PaintEventArgs e, Pen pen)
+        // drawing
+        protected override void derivedDraw(Graphics g, Pen pen)
         {
-            e.Graphics.DrawRectangle(pen, rect);
+            g.DrawPolygon(pen, controlPoints.ToArray());
+        }
+        protected override void derivedDraw(Graphics g, Pen pen, int index, Point location)
+        {
+            int fixedIndex = 0;
+            if (index == 0)
+                fixedIndex = 2;
+            else if (index == 1)
+                fixedIndex = 3;
+            else if (index == 3)
+                fixedIndex = 1;
+
+            int startX = Math.Min(location.X, controlPoints[fixedIndex].X);
+            int startY = Math.Min(location.Y, controlPoints[fixedIndex].Y);
+
+            int endX = Math.Max(location.X, controlPoints[fixedIndex].X);
+            int endY = Math.Max(location.Y, controlPoints[fixedIndex].Y);
+
+            Rectangle rect = new Rectangle(startX, startY, endX - startX, endY - startY);
+            g.DrawRectangle(pen, rect);
         }
 
+        // choosing
         protected override void buildGraphicsPath(GraphicsPath gPath)
         {
-            gPath.AddRectangle(rect);
+            gPath.AddPolygon(controlPoints.ToArray());
         }
 
-        protected override void derivedDrawLineBetweenControlPoints(PaintEventArgs e)
+        // cloning
+        public override IDrawingObject clone()
         {
+            Size size = new Size(controlPoints[2].X - controlPoints[0].X, controlPoints[2].Y - controlPoints[0].Y);
+            return new Rect(new Rectangle(controlPoints[0], size));
+        }
+
+        // controlling
+        public override IDrawingObject changeControlPoint(int index, Point newLocation)
+        {
+            int fixedIndex = 0;
+            if (index == 0)
+                fixedIndex = 2;
+            else if (index == 1)
+                fixedIndex = 3;
+            else if (index == 3)
+                fixedIndex = 1;
+
+            int startX = Math.Min(newLocation.X, controlPoints[fixedIndex].X);
+            int startY = Math.Min(newLocation.Y, controlPoints[fixedIndex].Y);
+
+            int endX = Math.Max(newLocation.X, controlPoints[fixedIndex].X);
+            int endY = Math.Max(newLocation.Y, controlPoints[fixedIndex].Y);
+
+            controlPoints[0] = new Point(startX, startY);
+            controlPoints[1] = new Point(endX, startY);
+            controlPoints[2] = new Point(endX, endY);
+            controlPoints[3] = new Point(startX, endY);
+
+            return this;
         }
     }
 
@@ -241,19 +434,81 @@ namespace DrawingObjects
             if (isFocus)
                 focus();
         }
-
-        protected override void derivedDraw(PaintEventArgs e, Pen pen)
+        
+        // drawing
+        protected override void derivedDraw(Graphics g, Pen pen)
         {
-            e.Graphics.DrawPolygon(pen, controlPoints.ToArray());
+            g.DrawPolygon(pen, controlPoints.ToArray());
+        }
+        protected override void derivedDraw(Graphics g, Pen pen, int index, Point location)
+        {
+            Point firstFixed = new Point();
+            Point secondFixed = new Point();
+            Point symmetricPoint = new Point(0, 0);
+
+            if (index == 0 || index == 2)
+            {
+                firstFixed = controlPoints[1];
+                secondFixed = controlPoints[3];
+            }
+            else if (index == 1 || index == 3)
+            {
+                firstFixed = controlPoints[0];
+                secondFixed = controlPoints[2];
+            }
+
+            symmetricPoint.X = firstFixed.X + secondFixed.X - location.X;
+            symmetricPoint.Y = firstFixed.Y + secondFixed.Y - location.Y;
+
+            List<Point> list = new List<Point>();
+            list.Add(location);
+            list.Add(firstFixed);
+            list.Add(symmetricPoint);
+            list.Add(secondFixed);
+
+            g.DrawPolygon(pen, list.ToArray());
         }
 
+        // choosing
         protected override void buildGraphicsPath(GraphicsPath gPath)
         {
             gPath.AddPolygon(controlPoints.ToArray());
         }
 
-        protected override void derivedDrawLineBetweenControlPoints(PaintEventArgs e)
+        // cloning
+        public override IDrawingObject clone()
         {
+            return new Parallelogram(controlPoints.ToArray());
+        }
+
+        // controlling
+        public override IDrawingObject changeControlPoint(int index, Point newLocation)
+        {
+            Point firstFixed = new Point();
+            Point secondFixed = new Point();
+            Point symmetricPoint = new Point(0, 0);
+
+            if (index == 0 || index == 2)
+            {
+                firstFixed = controlPoints[1];
+                secondFixed = controlPoints[3];
+            }
+            else if (index == 1 || index == 3)
+            {
+                firstFixed = controlPoints[0];
+                secondFixed = controlPoints[2];
+            }
+
+            symmetricPoint.X = firstFixed.X + secondFixed.X - newLocation.X;
+            symmetricPoint.Y = firstFixed.Y + secondFixed.Y - newLocation.Y;
+
+            controlPoints.Clear();
+            controlPoints.Add(newLocation);
+            controlPoints.Add(firstFixed);
+            controlPoints.Add(symmetricPoint);
+            controlPoints.Add(secondFixed);
+
+            return this;
         }
     }
 
@@ -268,18 +523,46 @@ namespace DrawingObjects
                 focus();
         }
 
+        // choosing
         protected override void buildGraphicsPath(GraphicsPath gPath)
         {
             gPath.AddPolygon(controlPoints.ToArray());
         }
 
-        protected override void derivedDraw(PaintEventArgs e, Pen pen)
+        // drawing
+        protected override void derivedDraw(Graphics g, Pen pen)
         {
-            e.Graphics.DrawPolygon(pen, controlPoints.ToArray());
+            g.DrawPolygon(pen, controlPoints.ToArray());
+        }
+        protected override void derivedDraw(Graphics g, Pen pen, int index, Point location)
+        {
+            List<Point> list = new List<Point>();
+            for (int i = 0; i < controlPoints.Count; i++)
+            {
+                if (i == index)
+                    list.Add(location);
+                else
+                    list.Add(controlPoints[i]);
+            }
+
+            g.DrawPolygon(pen, list.ToArray());
         }
 
-        protected override void derivedDrawLineBetweenControlPoints(PaintEventArgs e)
+        // cloning
+        public override IDrawingObject clone()
         {
+            List<Point> newList = new List<Point>(controlPoints.Count);
+            foreach (var point in controlPoints)
+                newList.Add(new Point(point.X, point.Y));
+            return new Polygon(newList);
+        }
+
+        // controlling
+        public override IDrawingObject changeControlPoint(int index, Point newLocation)
+        {
+            controlPoints[index] = newLocation;
+
+            return this;
         }
     }
 
@@ -294,18 +577,46 @@ namespace DrawingObjects
                 focus();
         }
 
+        // choosing
         protected override void buildGraphicsPath(GraphicsPath gPath)
         {
             gPath.AddLines(controlPoints.ToArray());
         }
 
-        protected override void derivedDraw(PaintEventArgs e, Pen pen)
+        // drawing
+        protected override void derivedDraw(Graphics g, Pen pen)
         {
-            e.Graphics.DrawLines(pen, controlPoints.ToArray());
+            g.DrawLines(pen, controlPoints.ToArray());
+        }
+        protected override void derivedDraw(Graphics g, Pen pen, int index, Point location)
+        {
+            List<Point> list = new List<Point>();
+            for (int i = 0; i < controlPoints.Count; i++)
+            {
+                if (i == index)
+                    list.Add(location);
+                else
+                    list.Add(controlPoints[i]);
+            }
+
+            g.DrawLines(pen, list.ToArray());
         }
 
-        protected override void derivedDrawLineBetweenControlPoints(PaintEventArgs e)
+        // cloning
+        public override IDrawingObject clone()
         {
+            List<Point> newList = new List<Point>(controlPoints.Count);
+            foreach (var point in controlPoints)
+                newList.Add(new Point(point.X, point.Y));
+            return new BrokenLine(newList);
+        }
+
+        // controlling
+        public override IDrawingObject changeControlPoint(int index, Point newLocation)
+        {
+            controlPoints[index] = newLocation;
+
+            return this;
         }
     }
 
@@ -337,6 +648,18 @@ namespace DrawingObjects
                 focus();
         }
 
+        // choosing
+        protected override void buildGraphicsPath(GraphicsPath gPath)
+        {
+            RectangleF bound;
+            float startAngle;
+            float sweepAngle;
+            prepareDrawingData(out bound, out startAngle, out sweepAngle);
+
+            gPath.AddArc(bound, startAngle, sweepAngle);
+        }
+
+        // drawing
         private void prepareDrawingData(out RectangleF rect, out float startAngle, out float sweepAngle)
         {
             rect = new RectangleF(center.X - radius, center.Y - radius, radius * 2, radius * 2);
@@ -366,46 +689,83 @@ namespace DrawingObjects
             }
             sweepAngle *= sweepSign;
         }
-
-        protected override void buildGraphicsPath(GraphicsPath gPath)
+        protected override void derivedDraw(Graphics g, Pen pen)
         {
             RectangleF bound;
             float startAngle;
             float sweepAngle;
             prepareDrawingData(out bound, out startAngle, out sweepAngle);
 
-            gPath.AddArc(bound, startAngle, sweepAngle);
+            g.DrawArc(pen, bound, startAngle, sweepAngle);
         }
-
-        protected override void derivedDraw(PaintEventArgs e, Pen pen)
-        {
-            RectangleF bound;
-            float startAngle;
-            float sweepAngle;
-            prepareDrawingData(out bound, out startAngle, out sweepAngle);
-
-            e.Graphics.DrawArc(pen, bound, startAngle, sweepAngle);
-        }
-
-        protected override void derivedDrawLineBetweenControlPoints(PaintEventArgs e)
+        protected override void derivedDrawLineBetweenControlPoints(Graphics g)
         {
             Pen dottedPen = new Pen(Color.Black, 1.0f);
             dottedPen.DashStyle = DashStyle.Dot;
             for (int i = 1; i < controlPoints.Count; i++)
-                e.Graphics.DrawLine(dottedPen, controlPoints[0], controlPoints[i]);
+                g.DrawLine(dottedPen, controlPoints[0], controlPoints[i]);
             dottedPen.Dispose();
+        }
+        protected override void derivedDraw(Graphics g, Pen pen, int index, Point location)
+        {
+            List<Point> list = new List<Point>();
+            for (int i = 0; i < controlPoints.Count; i++)
+            {
+                if (i == index)
+                    list.Add(location);
+                else
+                    list.Add(controlPoints[i]);
+            }
+
+            g.DrawLines(pen, list.ToArray());
+        }
+
+        // cloning
+        public override IDrawingObject clone()
+        {
+            return new CircleArc(center, pivot, smallPart, radius);
+        }
+
+        // controlling
+        public override bool controllablePoint(int index)
+        {
+            return index != 0;
+        }
+
+        // transforming
+        protected override void transform(Matrix matrix)
+        {
+            base.transform(matrix);
+            Point[] list = new Point[3];
+            list[0] = center;
+            list[1] = pivot[0];
+            list[2] = pivot[1];
+            matrix.TransformPoints(list);
+
+            center = list[0];
+            pivot[0] = list[1];
+            pivot[1] = list[2];
+        }
+
+        // scaling
+        public override Point getCentralPoint()
+        {
+            return center;
+        }
+        protected override void derivedScale(float xFactor, float yFactor)
+        {
+            base.derivedScale(xFactor, yFactor);
+            radius = (int)(Math.Min(xFactor, yFactor) * radius);
         }
     }
 
     // Duong tron
     public class Circle : IDrawingObject
     {
-        private Point center;
         private int radius;
 
         public Circle(Point center, int radius, bool isFocus = false)
         {
-            this.center = center;
             this.radius = radius;
 
             controlPoints = new List<Point>();
@@ -423,23 +783,62 @@ namespace DrawingObjects
                 focus();
         }
 
+        // choosing
         protected override void buildGraphicsPath(GraphicsPath gPath)
         {
-            gPath.AddEllipse(new Rectangle(center.X - radius, center.Y - radius, radius * 2, radius * 2));
+            gPath.AddEllipse(new Rectangle(controlPoints[0].X - radius, controlPoints[0].Y - radius, radius * 2, radius * 2));
         }
 
-        protected override void derivedDraw(PaintEventArgs e, Pen pen)
+        // drawing
+        protected override void derivedDraw(Graphics g, Pen pen)
         {
-            e.Graphics.DrawEllipse(pen, new Rectangle(center.X - radius, center.Y - radius, radius * 2, radius * 2));
+            g.DrawEllipse(pen, new Rectangle(controlPoints[0].X - radius, controlPoints[0].Y - radius, radius * 2, radius * 2));
         }
-
-        protected override void derivedDrawLineBetweenControlPoints(PaintEventArgs e)
+        protected override void derivedDrawLineBetweenControlPoints(Graphics g)
         {
             Pen dottedPen = new Pen(Color.Black, 1.0f);
             dottedPen.DashStyle = DashStyle.Dot;
             for (int i = 1; i < controlPoints.Count; i++)
-                e.Graphics.DrawLine(dottedPen, controlPoints[0], controlPoints[i]);
+                g.DrawLine(dottedPen, controlPoints[0], controlPoints[i]);
             dottedPen.Dispose();
+        }
+
+        // cloning
+        public override IDrawingObject clone()
+        {
+            return new Circle(controlPoints[0], radius);
+        }
+
+        // controlling
+        public override bool controllablePoint(int index)
+        {
+            return index != 0;
+        }
+
+        // transforming
+        protected override void transform(Matrix matrix) { }
+
+        // scaling
+        public override Point getCentralPoint()
+        {
+            return controlPoints[0];
+        }
+        protected override void derivedScale(float xFactor, float yFactor)
+        {
+            base.derivedScale(xFactor, yFactor);
+            radius = (int)(Math.Min(xFactor, yFactor) * radius);
+
+            Point center = controlPoints[0];
+            controlPoints.Clear();
+            controlPoints.Add(center);
+            controlPoints.Add(new Point(center.X, center.Y - radius));
+            controlPoints.Add(new Point(center.X + (int)(radius / Math.Sqrt(2)), center.Y - (int)(radius / Math.Sqrt(2))));
+            controlPoints.Add(new Point(center.X + radius, center.Y));
+            controlPoints.Add(new Point(center.X + (int)(radius / Math.Sqrt(2)), center.Y + (int)(radius / Math.Sqrt(2))));
+            controlPoints.Add(new Point(center.X, center.Y + radius));
+            controlPoints.Add(new Point(center.X - (int)(radius / Math.Sqrt(2)), center.Y + (int)(radius / Math.Sqrt(2))));
+            controlPoints.Add(new Point(center.X - radius, center.Y));
+            controlPoints.Add(new Point(center.X - (int)(radius / Math.Sqrt(2)), center.Y - (int)(radius / Math.Sqrt(2))));
         }
     }
 
@@ -467,23 +866,59 @@ namespace DrawingObjects
                 focus();
         }
 
+        // choosing
         protected override void buildGraphicsPath(GraphicsPath gPath)
         {
             gPath.AddEllipse(new Rectangle(center.X - a, center.Y - b, 2 * a, 2 * b));
         }
 
-        protected override void derivedDraw(PaintEventArgs e, Pen pen)
+        // drawing
+        protected override void derivedDraw(Graphics g, Pen pen)
         {
-            e.Graphics.DrawEllipse(pen, new Rectangle(center.X - a, center.Y - b, 2 * a, 2 * b));
+            g.DrawEllipse(pen, new Rectangle(center.X - a, center.Y - b, 2 * a, 2 * b));
         }
-
-        protected override void derivedDrawLineBetweenControlPoints(PaintEventArgs e)
+        protected override void derivedDrawLineBetweenControlPoints(Graphics g)
         {
             Pen dottedPen = new Pen(Color.Black, 1.0f);
             dottedPen.DashStyle = DashStyle.Dot;
             for (int i = 1; i < controlPoints.Count; i++)
-                e.Graphics.DrawLine(dottedPen, controlPoints[0], controlPoints[i]);
+                g.DrawLine(dottedPen, controlPoints[0], controlPoints[i]);
             dottedPen.Dispose();
+        }
+
+        // cloning
+        public override IDrawingObject clone()
+        {
+            return new Ellipse(center, a, b);
+        }
+
+        // controlling
+        public override bool controllablePoint(int index)
+        {
+            return index != 0;
+        }
+
+        // transforming
+        protected override void transform(Matrix matrix)
+        {
+            base.transform(matrix);
+            Point[] list = new Point[1];
+            list[0] = center;
+            matrix.TransformPoints(list);
+
+            center = list[0];
+        }
+
+        // scaling
+        public override Point getCentralPoint()
+        {
+            return center;
+        }
+        protected override void derivedScale(float xFactor, float yFactor)
+        {
+            base.derivedScale(xFactor, yFactor);
+            a = (int)(xFactor * a);
+            b = (int)(yFactor * b);
         }
     }
 
@@ -515,6 +950,18 @@ namespace DrawingObjects
                 focus();
         }
 
+        // choosing
+        protected override void buildGraphicsPath(GraphicsPath gPath)
+        {
+            Rectangle bound;
+            float startAngle;
+            float sweepAngle;
+            prepareDrawingData(out bound, out startAngle, out sweepAngle);
+
+            gPath.AddArc(bound, startAngle, sweepAngle);
+        }
+
+        // drawing
         private void prepareDrawingData(out Rectangle bound, out float startAngle, out float sweepAngle)
         {
             bound = new Rectangle(center.X - a, center.Y - b, 2 * a, 2 * b);
@@ -544,34 +991,61 @@ namespace DrawingObjects
             }
             sweepAngle *= sweepSign;
         }
-
-        protected override void buildGraphicsPath(GraphicsPath gPath)
+        protected override void derivedDraw(Graphics g, Pen pen)
         {
             Rectangle bound;
             float startAngle;
             float sweepAngle;
             prepareDrawingData(out bound, out startAngle, out sweepAngle);
 
-            gPath.AddArc(bound, startAngle, sweepAngle);
+            g.DrawArc(pen, bound, startAngle, sweepAngle);
         }
-
-        protected override void derivedDraw(PaintEventArgs e, Pen pen)
-        {
-            Rectangle bound;
-            float startAngle;
-            float sweepAngle;
-            prepareDrawingData(out bound, out startAngle, out sweepAngle);
-
-            e.Graphics.DrawArc(pen, bound, startAngle, sweepAngle);
-        }
-
-        protected override void derivedDrawLineBetweenControlPoints(PaintEventArgs e)
+        protected override void derivedDrawLineBetweenControlPoints(Graphics g)
         {
             Pen dottedPen = new Pen(Color.Black, 1.0f);
             dottedPen.DashStyle = DashStyle.Dot;
             for (int i = 1; i < controlPoints.Count; i++)
-                e.Graphics.DrawLine(dottedPen, controlPoints[0], controlPoints[i]);
+                g.DrawLine(dottedPen, controlPoints[0], controlPoints[i]);
             dottedPen.Dispose();
+        }
+
+        // cloning
+        public override IDrawingObject clone()
+        {
+            return new EllipseArc(center, a, b, pivot, smallPart);
+        }
+
+        // controlling
+        public override bool controllablePoint(int index)
+        {
+            return index != 0;
+        }
+
+        // transforming
+        protected override void transform(Matrix matrix)
+        {
+            base.transform(matrix);
+            Point[] list = new Point[3];
+            list[0] = center;
+            list[1] = pivot[0];
+            list[2] = pivot[1];
+            matrix.TransformPoints(list);
+
+            center = list[0];
+            pivot[0] = list[1];
+            pivot[1] = list[2];
+        }
+
+        // scaling
+        public override Point getCentralPoint()
+        {
+            return center;
+        }
+        protected override void derivedScale(float xFactor, float yFactor)
+        {
+            base.derivedScale(xFactor, yFactor);
+            a = (int)(xFactor * a);
+            b = (int)(yFactor * b);
         }
     }
 
@@ -586,49 +1060,58 @@ namespace DrawingObjects
                 focus();
         }
 
+        // choosing
         protected override void buildGraphicsPath(GraphicsPath gPath)
         {
             gPath.AddBezier(controlPoints[0], controlPoints[1], controlPoints[2], controlPoints[3]);
         }
 
-        protected override void derivedDraw(PaintEventArgs e, Pen pen)
+        // drawing
+        protected override void derivedDraw(Graphics g, Pen pen)
         {
-            e.Graphics.DrawBezier(pen, controlPoints[0], controlPoints[1], controlPoints[2], controlPoints[3]);
+            g.DrawBezier(pen, controlPoints[0], controlPoints[1], controlPoints[2], controlPoints[3]);
         }
-
-        protected override void derivedDrawLineBetweenControlPoints(PaintEventArgs e)
+        protected override void derivedDrawLineBetweenControlPoints(Graphics g)
         {
             Pen dottedPen = new Pen(Color.Black, 1.0f);
             dottedPen.DashStyle = DashStyle.Dot;
-            e.Graphics.DrawLines(dottedPen, controlPoints.ToArray());
+            g.DrawLines(dottedPen, controlPoints.ToArray());
             dottedPen.Dispose();
+        }
+
+        // cloning
+        public override IDrawingObject clone()
+        {
+            List<Point> newList = new List<Point>(controlPoints.Count);
+            foreach (var point in controlPoints)
+                newList.Add(new Point(point.X, point.Y));
+            return new Bezier(newList);
         }
     }
 
     // Text
     public class Text : IDrawingObject
     {
-        private Point origin;
         private string text;
-        private SizeF textSize;
         private Font font;
         private StringFormat format;
 
         private float resolutionX;
         private float resolutionY;
 
-        public Text(Point origin, string text, SizeF textSize, Font font, StringFormat format, bool isFocus = false)
+        public Text(Point origin, string text, Font font, StringFormat format, bool isFocus = false)
         {
-            this.origin = origin;
             this.text = text;
-            this.textSize = textSize;
             this.font = font;
             this.format = format;
+
+            Size textSize = TextRenderer.MeasureText(text, font);
+
             controlPoints = new List<Point>();
             controlPoints.Add(origin);
-            controlPoints.Add(new Point(origin.X + (int)textSize.Width, origin.Y                       ));
-            controlPoints.Add(new Point(origin.X + (int)textSize.Width, origin.Y + (int)textSize.Height));
-            controlPoints.Add(new Point(origin.X                      , origin.Y + (int)textSize.Height));
+            controlPoints.Add(new Point(origin.X + textSize.Width, origin.Y                  ));
+            controlPoints.Add(new Point(origin.X + textSize.Width, origin.Y + textSize.Height));
+            controlPoints.Add(new Point(origin.X                 , origin.Y + textSize.Height));
 
             if (isFocus)
                 focus();
@@ -644,24 +1127,37 @@ namespace DrawingObjects
             this.resolutionY = resolutionY;
         }
 
+        // choosing
         protected override void buildGraphicsPath(GraphicsPath gPath)
         {
-            gPath.AddString(text, font.FontFamily, (int)font.Style, font.Size * resolutionY / 72, origin, format);
-            gPath.AddRectangle(DrawingUtilities.CreateControlRect(origin));
+            gPath.AddString(text, font.FontFamily, (int)font.Style, font.Size * resolutionY / 72, controlPoints[0], format);
+            gPath.AddRectangle(DrawingUtilities.CreateControlRect(controlPoints[0]));
         }
 
-        protected override void derivedDraw(PaintEventArgs e, Pen pen)
+        // drawing
+        protected override void derivedDraw(Graphics g, Pen pen)
         {
             Brush brush = new SolidBrush(pen.Color);
-            e.Graphics.DrawString(text, font, brush, origin);
+            g.DrawString(text, font, brush, controlPoints[0]);
         }
-
-        protected override void derivedDrawLineBetweenControlPoints(PaintEventArgs e)
+        protected override void derivedDrawLineBetweenControlPoints(Graphics g)
         {
             Pen dottedPen = new Pen(Color.Black, 1.0f);
             dottedPen.DashStyle = DashStyle.Dot;
-            e.Graphics.DrawPolygon(dottedPen, controlPoints.ToArray());
+            g.DrawPolygon(dottedPen, controlPoints.ToArray());
             dottedPen.Dispose();
+        }
+
+        // cloning
+        public override IDrawingObject clone()
+        {
+            return new Text(controlPoints[0], text, new Font(font, font.Style), new StringFormat(format));
+        }
+
+        // controlling
+        public override bool controllablePoint(int index)
+        {
+            return index == 0;
         }
     }
 }

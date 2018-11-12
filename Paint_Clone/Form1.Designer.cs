@@ -42,6 +42,10 @@
             this.bezierRadio = new System.Windows.Forms.RadioButton();
             this.clearBtn = new System.Windows.Forms.Button();
             this.newTextRadio = new System.Windows.Forms.RadioButton();
+            this.moveRadio = new System.Windows.Forms.RadioButton();
+            this.deleteRadio = new System.Windows.Forms.RadioButton();
+            this.controlRadio = new System.Windows.Forms.RadioButton();
+            this.scaleRadio = new System.Windows.Forms.RadioButton();
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox1)).BeginInit();
             this.SuspendLayout();
             // 
@@ -49,9 +53,9 @@
             // 
             this.pictureBox1.BackColor = System.Drawing.Color.White;
             this.pictureBox1.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
-            this.pictureBox1.Location = new System.Drawing.Point(12, 58);
+            this.pictureBox1.Location = new System.Drawing.Point(12, 85);
             this.pictureBox1.Name = "pictureBox1";
-            this.pictureBox1.Size = new System.Drawing.Size(1160, 591);
+            this.pictureBox1.Size = new System.Drawing.Size(1160, 564);
             this.pictureBox1.TabIndex = 0;
             this.pictureBox1.TabStop = false;
             this.pictureBox1.Paint += new System.Windows.Forms.PaintEventHandler(this.pictureBox1_Paint);
@@ -75,7 +79,7 @@
             // selectRadio
             // 
             this.selectRadio.AutoSize = true;
-            this.selectRadio.Location = new System.Drawing.Point(975, 12);
+            this.selectRadio.Location = new System.Drawing.Point(857, 12);
             this.selectRadio.Name = "selectRadio";
             this.selectRadio.Size = new System.Drawing.Size(55, 17);
             this.selectRadio.TabIndex = 2;
@@ -214,12 +218,64 @@
             this.newTextRadio.UseVisualStyleBackColor = true;
             this.newTextRadio.CheckedChanged += new System.EventHandler(this.radio_CheckedChanged);
             // 
+            // moveRadio
+            // 
+            this.moveRadio.AutoSize = true;
+            this.moveRadio.Location = new System.Drawing.Point(857, 35);
+            this.moveRadio.Name = "moveRadio";
+            this.moveRadio.Size = new System.Drawing.Size(52, 17);
+            this.moveRadio.TabIndex = 14;
+            this.moveRadio.TabStop = true;
+            this.moveRadio.Text = "Move";
+            this.moveRadio.UseVisualStyleBackColor = true;
+            this.moveRadio.CheckedChanged += new System.EventHandler(this.radio_CheckedChanged);
+            // 
+            // deleteRadio
+            // 
+            this.deleteRadio.AutoSize = true;
+            this.deleteRadio.Location = new System.Drawing.Point(979, 12);
+            this.deleteRadio.Name = "deleteRadio";
+            this.deleteRadio.Size = new System.Drawing.Size(56, 17);
+            this.deleteRadio.TabIndex = 15;
+            this.deleteRadio.TabStop = true;
+            this.deleteRadio.Text = "Delete";
+            this.deleteRadio.UseVisualStyleBackColor = true;
+            this.deleteRadio.CheckedChanged += new System.EventHandler(this.radio_CheckedChanged);
+            // 
+            // controlRadio
+            // 
+            this.controlRadio.AutoSize = true;
+            this.controlRadio.Location = new System.Drawing.Point(915, 12);
+            this.controlRadio.Name = "controlRadio";
+            this.controlRadio.Size = new System.Drawing.Size(58, 17);
+            this.controlRadio.TabIndex = 16;
+            this.controlRadio.TabStop = true;
+            this.controlRadio.Text = "Control";
+            this.controlRadio.UseVisualStyleBackColor = true;
+            this.controlRadio.CheckedChanged += new System.EventHandler(this.radio_CheckedChanged);
+            // 
+            // scaleRadio
+            // 
+            this.scaleRadio.AutoSize = true;
+            this.scaleRadio.Location = new System.Drawing.Point(915, 35);
+            this.scaleRadio.Name = "scaleRadio";
+            this.scaleRadio.Size = new System.Drawing.Size(52, 17);
+            this.scaleRadio.TabIndex = 17;
+            this.scaleRadio.TabStop = true;
+            this.scaleRadio.Text = "Scale";
+            this.scaleRadio.UseVisualStyleBackColor = true;
+            this.scaleRadio.CheckedChanged += new System.EventHandler(this.radio_CheckedChanged);
+            // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.SystemColors.ControlLight;
             this.ClientSize = new System.Drawing.Size(1184, 661);
+            this.Controls.Add(this.scaleRadio);
+            this.Controls.Add(this.controlRadio);
+            this.Controls.Add(this.deleteRadio);
+            this.Controls.Add(this.moveRadio);
             this.Controls.Add(this.newTextRadio);
             this.Controls.Add(this.clearBtn);
             this.Controls.Add(this.bezierRadio);
@@ -263,6 +319,10 @@
         private System.Windows.Forms.RadioButton bezierRadio;
         private System.Windows.Forms.Button clearBtn;
         private System.Windows.Forms.RadioButton newTextRadio;
+        private System.Windows.Forms.RadioButton moveRadio;
+        private System.Windows.Forms.RadioButton deleteRadio;
+        private System.Windows.Forms.RadioButton controlRadio;
+        private System.Windows.Forms.RadioButton scaleRadio;
     }
 }
 

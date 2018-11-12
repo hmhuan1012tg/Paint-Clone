@@ -23,10 +23,8 @@ namespace Paint_Clone
             InitializeComponent();
 
             // Setup form component
-            selectRadio.Checked = true;
-
             objectList = new ObjectList(); 
-            tool = new SelectTool(objectList);
+            selectRadio.Checked = true;
         }
 
         private void pictureBox1_Paint(object sender, PaintEventArgs e)
@@ -107,12 +105,35 @@ namespace Paint_Clone
                 tool = new CreateTextTool(objectList);
                 usedCursor = Cursors.IBeam;
             }
+
+            // Manipulation Tools
             else if (selectRadio.Checked)
             {
                 tool = new SelectTool(objectList);
                 usedCursor = Cursors.Arrow;
             }
+            else if (moveRadio.Checked)
+            {
+                tool = new MoveTool(objectList);
+                usedCursor = Cursors.NoMove2D;
+            }
+            else if (deleteRadio.Checked)
+            {
+                tool = new DeleteTool(objectList);
+                usedCursor = Cursors.No;
+            }
+            else if (controlRadio.Checked)
+            {
+                tool = new ControlTool(objectList);
+                usedCursor = Cursors.Hand;
+            }
+            else if (scaleRadio.Checked)
+            {
+                tool = new ScaleTool(objectList);
+                usedCursor = Cursors.SizeAll;
+            }
 
+            pictureBox1.Invalidate();
             tool.setOwner(this);
         }
 

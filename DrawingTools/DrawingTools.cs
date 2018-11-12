@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using System.Windows.Input;
 using System.Windows.Forms;
 using DrawingObjects;
+using System.Drawing.Drawing2D;
 
 namespace DrawingTools
 {
@@ -1063,7 +1064,6 @@ namespace DrawingTools
     {
         private Point origin;
         private bool originSnap;
-        private SizeF textSize;
         private StringBuilder builder;
         private float resolutionX;
         private float resolutionY;
@@ -1102,7 +1102,7 @@ namespace DrawingTools
             {
                 Font font = new Font(FontFamily.GenericMonospace, 30.0f, FontStyle.Regular);
                 StringFormat format = StringFormat.GenericDefault;
-                Text textObj = new Text(origin, builder.ToString().Substring(0, builder.Length - 1), textSize, font, format, true);
+                Text textObj = new Text(origin, builder.ToString().Substring(0, builder.Length - 1), font, format, true);
                 textObj.setResolutionX(resolutionX);
                 textObj.setResolutionY(resolutionY);
                 objectList.add(textObj);
@@ -1137,14 +1137,13 @@ namespace DrawingTools
                 // draw string
                 DrawingUtilities.DrawControlRect(g, origin);
                 Font font = new Font(FontFamily.GenericMonospace, 30.0f, FontStyle.Regular);
-                g.DrawString(builder.ToString(), font, Brushes.Black, origin);
+                g.DrawString(builder.ToString(), font, Brushes.Gray, origin);
 
                 // calculate and draw text bounding box
-                textSize = g.MeasureString(builder.ToString().Substring(0, builder.Length - 1), font);
-                SizeF tempTextSize = g.MeasureString(builder.ToString(), font);
-                Pen dottedPen = new Pen(Color.Black, 1.0f);
-                dottedPen.DashStyle = System.Drawing.Drawing2D.DashStyle.Dot;
-                Rectangle bound = new Rectangle(origin, tempTextSize.ToSize());
+                Size tempTextSize = TextRenderer.MeasureText(builder.ToString(), font);
+                Pen dottedPen = new Pen(Color.Gray, 1.0f);
+                dottedPen.DashStyle = DashStyle.Dot;
+                Rectangle bound = new Rectangle(origin, tempTextSize);
                 g.DrawRectangle(dottedPen, bound);
                 dottedPen.Dispose();
             }
@@ -1159,11 +1158,13 @@ namespace DrawingTools
         }
     }
 
+    // Select Tool
     public class SelectTool : IDrawingTool
     {
         public SelectTool(ObjectList objectList)
         {
             this.objectList = objectList;
+            objectList.defocusAll();
         }
 
         public override void onMouseDown(object sender, MouseEventArgs e)
@@ -1177,16 +1178,385 @@ namespace DrawingTools
 
         public override void onMouseMove(object sender, MouseEventArgs e)
         {
-            return;
         }
 
         public override void onPartialDraw(Graphics g)
         {
-            return;
         }
 
         public override void reset(object sender)
         {
+        }
+    }
+
+    // Move Tool
+    public class MoveTool : IDrawingTool
+    {
+        private IDrawingObject chosenObject;
+        private Point oldLocation;
+        private Point newLocation;
+
+        public MoveTool(ObjectList objectList)
+        {
+            this.objectList = objectList;
+            objectList.defocusAll();
+
+            chosenObject = null;
+        }
+
+        public override void onMouseDown(object sender, MouseEventArgs e)
+        {
+            // if right click
+            // defocus chosen object
+            if (e.Button == MouseButtons.Right)
+            {
+                reset(sender);
+                return;
+            }
+
+            // if no object is chosen
+            // choose one
+            if (chosenObject == null)
+            {
+                chosenObject = objectList.getVisible(e.Location);
+                objectList.defocusAll();
+                if (chosenObject != null)
+                {
+                    chosenObject.focus();
+                    oldLocation = e.Location;
+                }
+                else
+                {
+                    (sender as Control).Invalidate();
+                }
+                return;
+            }
+            
+            // else, user has specified new location
+            // move object using offset from new to old location
+            chosenObject.move(newLocation.X - oldLocation.X, newLocation.Y - oldLocation.Y);
+            (sender as Control).Invalidate();
+
+            // reset
+            chosenObject = null;
+        }
+
+        public override void onMouseMove(object sender, MouseEventArgs e)
+        {
+            if (chosenObject == null)
+                return;
+
+            newLocation = e.Location;
+            (sender as Control).Invalidate();
+        }
+
+        public override void onPartialDraw(Graphics g)
+        {
+            if (chosenObject == null)
+                return;
+
+            Pen dottedPen = new Pen(Color.Gray, 1.0f);
+            dottedPen.DashStyle = DashStyle.Dot;
+
+            Matrix translate = new Matrix();
+            translate.Translate(newLocation.X - oldLocation.X, newLocation.Y - oldLocation.Y);
+            chosenObject.onDraw(g, translate, dottedPen);
+
+            dottedPen.Dispose();
+        }
+
+        public override void reset(object sender)
+        {
+            if (chosenObject != null)
+            {
+                chosenObject.defocus();
+                chosenObject = null;
+            }
+            (sender as Control).Invalidate();
+        }
+    }
+
+    // Delete Tool
+    public class DeleteTool : IDrawingTool
+    {
+        private IDrawingObject chosenObject;
+
+        public DeleteTool(ObjectList objectList)
+        {
+            this.objectList = objectList;
+            objectList.defocusAll();
+            chosenObject = null;
+        }
+
+        public override void onMouseDown(object sender, MouseEventArgs e)
+        {
+            // if no object is chosen
+            // choose one
+            if (chosenObject == null)
+            {
+                chosenObject = objectList.getVisible(e.Location);
+                objectList.defocusAll();
+                (sender as Control).Invalidate();
+                if (chosenObject == null)
+                    return;
+            }
+
+            // else, user has specified an object
+            // delete object from object list
+            objectList.remove(chosenObject);
+            (sender as Control).Invalidate();
+
+            // reset
+            chosenObject = null;
+        }
+
+        public override void onMouseMove(object sender, MouseEventArgs e) { }
+
+        public override void onPartialDraw(Graphics g) { }
+
+        public override void reset(object sender) { }
+    }
+
+    // Control Tool
+    // NOT FINISHED YET
+    public class ControlTool : IDrawingTool
+    {
+        private IDrawingObject chosenObject;
+        private int index;
+        private Point location;
+        private bool controlSnap;
+
+        public ControlTool(ObjectList objectList)
+        {
+            this.objectList = objectList;
+            objectList.defocusAll();
+            chosenObject = null;
+            index = -1;
+            controlSnap = false;
+        }
+
+        public override void onMouseDown(object sender, MouseEventArgs e)
+        {
+            // if right click
+            // defocus chosen object
+            if (e.Button == MouseButtons.Right)
+            {
+                reset(sender);
+                return;
+            }
+
+            // choose control point
+            if (!controlSnap)
+            {
+                // if no object is chosen
+                // choose one
+                IDrawingObject visibleObj = objectList.getVisible(e.Location);
+
+                if (visibleObj != null && !ReferenceEquals(visibleObj, chosenObject))
+                {
+                    chosenObject = visibleObj;
+                    if (!chosenObject.isFocused())
+                    {
+                        objectList.defocusAll();
+                        chosenObject.focus();
+                        (sender as Control).Invalidate();
+                    }
+                    return;
+                }
+                else if (visibleObj == null)
+                {
+                    chosenObject = null;
+                    objectList.defocusAll();
+                    (sender as Control).Invalidate();
+                    return;
+                }
+
+                index = chosenObject.visibleControlPointIndex(e.Location);
+                if (index >= 0 && chosenObject.controllablePoint(index))
+                    controlSnap = true;
+                return;
+            }
+
+            // else, user has specified new location
+            // move object using offset from new to old location
+            chosenObject.changeControlPoint(index, location);
+            (sender as Control).Invalidate();
+
+            // reset
+            controlSnap = false;
+        }
+
+        public override void onMouseMove(object sender, MouseEventArgs e)
+        {
+            if (!controlSnap)
+                return;
+
+            location = e.Location;
+            (sender as Control).Invalidate();
+        }
+
+        public override void onPartialDraw(Graphics g)
+        {
+            if (!controlSnap)
+                return;
+
+            Pen dottedPen = new Pen(Color.Black, 1.0f);
+            dottedPen.DashStyle = DashStyle.Dot;
+
+            chosenObject.onDraw(g, index, location, dottedPen);
+
+            dottedPen.Dispose();
+        }
+
+        public override void reset(object sender)
+        {
+            controlSnap = false;
+            if (chosenObject != null)
+            {
+                chosenObject.defocus();
+                chosenObject = null;
+            }
+            (sender as Control).Invalidate();
+        }
+    }
+
+    // Scale Tool
+    public class ScaleTool : IDrawingTool
+    {
+        private IDrawingObject chosenObject;
+        private Point central;
+        private Point oldLocation;
+        private Point newLocation;
+        private bool controlSnap;
+
+        public ScaleTool(ObjectList objectList)
+        {
+            this.objectList = objectList;
+            objectList.defocusAll();
+
+            chosenObject = null;
+            controlSnap = false;
+        }
+
+        public override void onMouseDown(object sender, MouseEventArgs e)
+        {
+            // if right click
+            // defocus chosen object
+            if (e.Button == MouseButtons.Right)
+            {
+                reset(sender);
+                return;
+            }
+
+            // choose control point
+            if (!controlSnap)
+            {
+                // if no object is chosen
+                // choose one
+                IDrawingObject visibleObj = objectList.getVisible(e.Location);
+
+                if (visibleObj != null && !ReferenceEquals(visibleObj, chosenObject))
+                {
+                    chosenObject = visibleObj;
+                    central = chosenObject.getCentralPoint();
+                    if (!chosenObject.isFocused())
+                    {
+                        objectList.defocusAll();
+                        chosenObject.focus();
+                        (sender as Control).Invalidate();
+                    }
+                    return;
+                }
+                else if (visibleObj == null)
+                {
+                    chosenObject = null;
+                    objectList.defocusAll();
+                    (sender as Control).Invalidate();
+                    return;
+                }
+
+                int index = chosenObject.visibleControlPointIndex(e.Location);
+                if (index >= 0 && chosenObject.controllablePoint(index))
+                {
+                    oldLocation = e.Location;
+                    controlSnap = true;
+                }
+                return;
+            }
+
+            // else, user has specified new location
+            // scale object using xFactor and yFactor
+            if (oldLocation.X == central.X || oldLocation.Y == central.Y)
+                return;
+            float xFactor = (float)(newLocation.X - central.X) / (oldLocation.X - central.X);
+            float yFactor = (float)(newLocation.Y - central.Y) / (oldLocation.Y - central.Y);
+            if (chosenObject is Circle || chosenObject is CircleArc)
+            {
+                float oldLength = DrawingUtilities.CalculateLength(oldLocation, central);
+                float newLength = DrawingUtilities.CalculateLength(newLocation, central);
+
+                xFactor = yFactor = newLength / oldLength;
+            }
+            if (xFactor == 0 || yFactor == 0)
+                return;
+
+            chosenObject.scale(xFactor, yFactor);
+            (sender as Control).Invalidate();
+
+            // reset
+            controlSnap = false;
+        }
+
+        public override void onMouseMove(object sender, MouseEventArgs e)
+        {
+            if (!controlSnap)
+                return;
+
+            newLocation = e.Location;
+            (sender as Control).Invalidate();
+        }
+
+        public override void onPartialDraw(Graphics g)
+        {
+            if (!controlSnap)
+                return;
+
+            if (oldLocation.X == central.X || oldLocation.Y == central.Y)
+                return;
+
+            float xFactor = (float)(newLocation.X - central.X) / (oldLocation.X - central.X);
+            float yFactor = (float)(newLocation.Y - central.Y) / (oldLocation.Y - central.Y);
+
+            if (chosenObject is Circle || chosenObject is CircleArc)
+            {
+                float oldLength = DrawingUtilities.CalculateLength(oldLocation, central);
+                float newLength = DrawingUtilities.CalculateLength(newLocation, central);
+
+                xFactor = yFactor = newLength / oldLength;
+            }
+
+            if (xFactor == 0 || yFactor == 0)
+                return;
+
+            Pen dottedPen = new Pen(Color.Gray, 1.0f);
+            dottedPen.DashStyle = DashStyle.Dot;
+
+            IDrawingObject clone = chosenObject.clone();
+            clone.scale(xFactor, yFactor);
+            clone.onDraw(g, dottedPen);
+
+            dottedPen.Dispose();
+        }
+
+        public override void reset(object sender)
+        {
+            controlSnap = false;
+            if (chosenObject != null)
+            {
+                chosenObject.defocus();
+                chosenObject = null;
+            }
+            (sender as Control).Invalidate();
         }
     }
 }
