@@ -721,7 +721,7 @@ namespace DrawingTools
 
             Point center = new Point((endX + startX) / 2, (endY + startY) / 2);
 
-            Ellipse ellipse = new Ellipse(center, (endX - startX) / 2, (endY - startY) / 2, true);
+            Ellipse ellipse = new Ellipse(center, (endX - startX) / 2.0f, (endY - startY) / 2.0f, true);
             objectList.add(ellipse);
             firstSnap = false;
             (sender as Control).Invalidate();
@@ -742,7 +742,7 @@ namespace DrawingTools
 
             // prepare dashed pen
             Pen dashedPen = new Pen(Color.Black, 1.0f);
-            dashedPen.DashStyle = System.Drawing.Drawing2D.DashStyle.Dot;
+            dashedPen.DashStyle = DashStyle.Dot;
 
             // draw dashed ellipse
             int startX = Math.Min(firstPoint.X, secondPoint.X);
@@ -771,8 +771,8 @@ namespace DrawingTools
         private Point firstPoint;
         private Point secondPoint;
         private Point center;
-        private int a;
-        private int b;
+        private float a;
+        private float b;
         private Point[] pivot;
         private bool smallPart;
 
@@ -812,8 +812,8 @@ namespace DrawingTools
             }
             if (!secondSnap)
             {
-                a = Math.Abs(firstPoint.X - secondPoint.X) / 2;
-                b = Math.Abs(firstPoint.Y - secondPoint.Y) / 2;
+                a = Math.Abs(firstPoint.X - secondPoint.X) / 2.0f;
+                b = Math.Abs(firstPoint.Y - secondPoint.Y) / 2.0f;
                 center.X = (firstPoint.X + secondPoint.X) / 2;
                 center.Y = (firstPoint.Y + secondPoint.Y) / 2;
                 if (a < 5 || b < 5)
