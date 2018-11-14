@@ -1,0 +1,5 @@
+C:\Users\doremobi\Documents\Visual Studio 2015\Projects\DrawingLineAlgorithms\DrawingAlgorithms\bin\Release\DrawingAlgorithms.dll
+C:\Users\doremobi\Documents\Visual Studio 2015\Projects\DrawingLineAlgorithms\DrawingAlgorithms\bin\Release\DrawingAlgorithms.pdb
+C:\Users\doremobi\Documents\Visual Studio 2015\Projects\DrawingLineAlgorithms\DrawingAlgorithms\obj\Release\DrawingAlgorithms.csprojResolveAssemblyReference.cache
+C:\Users\doremobi\Documents\Visual Studio 2015\Projects\DrawingLineAlgorithms\DrawingAlgorithms\obj\Release\DrawingAlgorithms.dll
+C:\Users\doremobi\Documents\Visual Studio 2015\Projects\DrawingLineAlgorithms\DrawingAlgorithms\obj\Release\DrawingAlgorithms.pdb

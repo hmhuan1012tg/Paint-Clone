@@ -1009,7 +1009,8 @@ namespace DrawingTools
 
             if (controlSnaps < 4)
             {
-                controlPoints.Add(e.Location);
+                if (controlSnaps < 3)
+                    controlPoints.Add(e.Location);
                 if (controlSnaps == 0)
                     controlPoints.Add(e.Location);
                 controlSnaps++;
@@ -1151,6 +1152,427 @@ namespace DrawingTools
             originSnap = false;
             builder.Length = 0;
             builder.Append('_');
+            (sender as Control).Invalidate();
+        }
+    }
+
+    // Parabola
+    public class ParabolaTool : IDrawingTool
+    {
+        private Point firstPoint;
+        private Point secondPoint;
+        private Point currentLocation;
+        private Rectangle bound;
+        private bool firstSnap;
+        private bool secondSnap;
+
+        public ParabolaTool(ObjectList objectList)
+        {
+            firstSnap = false;
+            secondSnap = false;
+            this.objectList = objectList;
+        }
+
+        private bool prepareSideAndDirection(Point currentLocation, List<Point> controls, out bool horizontal)
+        {
+            horizontal = true;
+            // mouse inside bound (M) --> no side chosen
+            if (bound.Contains(currentLocation))
+                return false;
+            // NW, NE, SW, SE --> no side chosen
+            // ---------------
+            // | NW | N | NE |
+            // ---------------
+            // | W  | M | E  |
+            // ---------------
+            // | SW | S | SE |
+            // ---------------
+            if (currentLocation.X <= bound.Left && currentLocation.Y <= bound.Top)
+                return false;
+            if (currentLocation.X >= bound.Right && currentLocation.Y <= bound.Top)
+                return false;
+            if (currentLocation.X <= bound.Left && currentLocation.Y >= bound.Bottom)
+                return false;
+            if (currentLocation.X >= bound.Right && currentLocation.Y >= bound.Bottom)
+                return false;
+
+            // West
+            if (currentLocation.X < bound.Left)
+            {
+                controls.Add(new Point(bound.Right, bound.Top + bound.Height / 2));
+                controls.Add(new Point(bound.Left, bound.Top));
+                controls.Add(new Point(bound.Left, bound.Bottom));
+            }
+            // East
+            else if (currentLocation.X > bound.Right)
+            {
+                controls.Add(new Point(bound.Left, bound.Top + bound.Height / 2));
+                controls.Add(new Point(bound.Right, bound.Top));
+                controls.Add(new Point(bound.Right, bound.Bottom));
+            }
+            // North
+            else if (currentLocation.Y < bound.Top)
+            {
+                controls.Add(new Point(bound.Left + bound.Width / 2, bound.Bottom));
+                controls.Add(new Point(bound.Left, bound.Top));
+                controls.Add(new Point(bound.Right, bound.Top));
+                horizontal = false;
+            }
+            // South
+            else
+            {
+                controls.Add(new Point(bound.Left + bound.Width / 2, bound.Top));
+                controls.Add(new Point(bound.Left, bound.Bottom));
+                controls.Add(new Point(bound.Right, bound.Bottom));
+                horizontal = false;
+            }
+
+            return true;
+        }
+
+        public override void onMouseDown(object sender, MouseEventArgs e)
+        {
+            // right click --> cancel action
+            if (e.Button == MouseButtons.Right)
+            {
+                reset(sender);
+                return;
+            }
+
+            if (!firstSnap)
+            {
+                firstSnap = true;
+                firstPoint = e.Location;
+                return;
+            }
+            if (!secondSnap)
+            {
+                // prepare rectangle object
+                int startX = Math.Min(firstPoint.X, secondPoint.X);
+                int startY = Math.Min(firstPoint.Y, secondPoint.Y);
+
+                int endX = Math.Max(firstPoint.X, secondPoint.X);
+                int endY = Math.Max(firstPoint.Y, secondPoint.Y);
+
+                bound = new Rectangle(startX, startY, endX - startX + 1, endY - startY + 1);
+                secondSnap = true;
+                return;
+            }
+
+            List<Point> controls = new List<Point>(3);
+            bool horizontal = true;
+            if (!prepareSideAndDirection(e.Location, controls, out horizontal))
+                return;
+
+            // add parabola object to list for drawing onto picturebox
+            Parabola para = new Parabola(controls, horizontal, true);
+            objectList.add(para);
+            (sender as Control).Invalidate();
+            firstSnap = false;
+        }
+
+        public override void onMouseMove(object sender, MouseEventArgs e)
+        {
+            if (firstSnap && !secondSnap)
+            {
+                secondPoint = e.Location;
+                (sender as Control).Invalidate();
+            }
+            if (firstSnap && secondSnap)
+            {
+                currentLocation = e.Location;
+                (sender as Control).Invalidate();
+            }
+        }
+
+        public override void onPartialDraw(Graphics g)
+        {
+            if (!firstSnap)
+                return;
+
+            // prepare dashed pen
+            Pen dashedPen = new Pen(Color.Black, 1.0f);
+            dashedPen.DashStyle = DashStyle.Dot;
+
+            if (!secondSnap)
+            {
+                // prepare dashed rectangle
+                int startX = Math.Min(firstPoint.X, secondPoint.X);
+                int startY = Math.Min(firstPoint.Y, secondPoint.Y);
+
+                int endX = Math.Max(firstPoint.X, secondPoint.X);
+                int endY = Math.Max(firstPoint.Y, secondPoint.Y);
+
+                Rectangle rect = new Rectangle(startX, startY, endX - startX + 1, endY - startY + 1);
+
+                // draw dashed rectangle
+                g.DrawRectangle(dashedPen, rect);
+            }
+            else
+            {
+                g.DrawRectangle(dashedPen, bound);
+
+                List<Point> controls = new List<Point>(3);
+                bool horizontal = true;
+                if (!prepareSideAndDirection(currentLocation, controls, out horizontal))
+                    return;
+
+                // create temporary parabola and draw it with dashed pen
+                IDrawingObject para = new Parabola(controls, horizontal);
+                para.onDraw(g, dashedPen);
+            }
+
+            dashedPen.Dispose();
+        }
+
+        public override void reset(object sender)
+        {
+            firstSnap = false;
+            secondSnap = false;
+            (sender as Control).Invalidate();
+        }
+    }
+
+    // Hyperbola
+    public class HyperbolaTool: IDrawingTool
+    {
+        private Point firstPoint;
+        private Point secondPoint;
+        private Point currentLocation;
+        private Rectangle bound;
+        private bool firstSnap;
+        private bool secondSnap;
+        private bool sideChosen;
+        private bool horizontal;
+
+        public HyperbolaTool(ObjectList objectList)
+        {
+            firstSnap = false;
+            secondSnap = false;
+            sideChosen = false;
+            horizontal = true;
+            this.objectList = objectList;
+        }
+
+        private bool prepareSideAndDirection(Point location)
+        {
+            // mouse inside bound (M) --> no side chosen
+            if (bound.Contains(location))
+                return false;
+            // NW, NE, SW, SE --> no side chosen
+            // ---------------
+            // | NW | N | NE |
+            // ---------------
+            // | W  | M | E  |
+            // ---------------
+            // | SW | S | SE |
+            // ---------------
+            if (location.X <= bound.Left && location.Y <= bound.Top)
+                return false;
+            if (location.X >= bound.Right && location.Y <= bound.Top)
+                return false;
+            if (location.X <= bound.Left && location.Y >= bound.Bottom)
+                return false;
+            if (location.X >= bound.Right && location.Y >= bound.Bottom)
+                return false;
+
+            // West, East --> horizontal
+            // North, South --> vertical
+            if (location.Y < bound.Top || location.Y > bound.Bottom)
+                horizontal = false;
+            else
+                horizontal = true;
+
+            return true;
+        }
+
+        private bool checkSidePoint()
+        {
+            if (currentLocation.X <= bound.Left || currentLocation.X >= bound.Right)
+                return false;
+            if (currentLocation.Y <= bound.Top || currentLocation.Y >= bound.Bottom)
+                return false;
+            int midX = bound.Left + bound.Width / 2;
+            int midY = bound.Top + bound.Height / 2;
+            if (horizontal && currentLocation.X == midX)
+                return false;
+            if (!horizontal && currentLocation.Y == midY)
+                return false;
+
+            return true;
+        }
+
+        public override void onMouseDown(object sender, MouseEventArgs e)
+        {
+            // right click --> cancel action
+            if (e.Button == MouseButtons.Right)
+            {
+                reset(sender);
+                return;
+            }
+
+            if (!firstSnap)
+            {
+                firstSnap = true;
+                firstPoint = e.Location;
+                return;
+            }
+            if (!secondSnap)
+            {
+                // prepare rectangle object
+                int startX = Math.Min(firstPoint.X, secondPoint.X);
+                int startY = Math.Min(firstPoint.Y, secondPoint.Y);
+
+                int endX = Math.Max(firstPoint.X, secondPoint.X);
+                int endY = Math.Max(firstPoint.Y, secondPoint.Y);
+
+                bound = new Rectangle(startX, startY, endX - startX + 1, endY - startY + 1);
+                secondSnap = true;
+                return;
+            }
+
+            if (!sideChosen)
+            {
+                if (prepareSideAndDirection(e.Location))
+                    sideChosen = true;
+                return;
+            }
+
+            if (!checkSidePoint())
+                return;
+
+            // construct list of control points
+            List<Point> controls = new List<Point>();
+            controls.Add(new Point(bound.Left + bound.Width / 2, bound.Top + bound.Height / 2));
+            if (horizontal)
+            {
+                int dx = Math.Abs(controls[0].X - currentLocation.X);
+                controls.Add(new Point(controls[0].X - dx, controls[0].Y));
+                controls.Add(new Point(controls[0].X + dx, controls[0].Y));
+                controls.Add(new Point(bound.Left, bound.Top));
+                controls.Add(new Point(bound.Right, bound.Top));
+                controls.Add(new Point(bound.Right, bound.Bottom));
+                controls.Add(new Point(bound.Left, bound.Bottom));
+            }
+            else
+            {
+                int dy = Math.Abs(controls[0].Y - currentLocation.Y);
+                controls.Add(new Point(controls[0].X, controls[0].Y - dy));
+                controls.Add(new Point(controls[0].X, controls[0].Y + dy));
+                controls.Add(new Point(bound.Right, bound.Top));
+                controls.Add(new Point(bound.Right, bound.Bottom));
+                controls.Add(new Point(bound.Left, bound.Bottom));
+                controls.Add(new Point(bound.Left, bound.Top));
+            }
+
+            // add parabola object to list for drawing onto picturebox
+            Hyperbola hyper = new Hyperbola(controls, horizontal, true);
+            objectList.add(hyper);
+            (sender as Control).Invalidate();
+            reset(sender);
+        }
+
+        public override void onMouseMove(object sender, MouseEventArgs e)
+        {
+            if (firstSnap && !secondSnap)
+            {
+                secondPoint = e.Location;
+                (sender as Control).Invalidate();
+            }
+            if (firstSnap && secondSnap)
+            {
+                currentLocation = e.Location;
+                (sender as Control).Invalidate();
+            }
+        }
+
+        public override void onPartialDraw(Graphics g)
+        {
+            if (!firstSnap)
+                return;
+
+            // prepare dashed pen
+            Pen dashedPen = new Pen(Color.Black, 1.0f);
+            dashedPen.DashStyle = DashStyle.Dot;
+
+            if (!secondSnap)
+            {
+                // prepare dashed rectangle
+                int startX = Math.Min(firstPoint.X, secondPoint.X);
+                int startY = Math.Min(firstPoint.Y, secondPoint.Y);
+
+                int endX = Math.Max(firstPoint.X, secondPoint.X);
+                int endY = Math.Max(firstPoint.Y, secondPoint.Y);
+
+                Rectangle rect = new Rectangle(startX, startY, endX - startX + 1, endY - startY + 1);
+
+                // draw dashed rectangle
+                g.DrawRectangle(dashedPen, rect);
+            }
+            else
+            {
+                g.DrawRectangle(dashedPen, bound);
+
+                if (!sideChosen && !prepareSideAndDirection(currentLocation))
+                        return;
+
+                // draw a middle line to indicate chosen orientation
+                Point startPoint = new Point();
+                Point endPoint = new Point();
+                if (horizontal)
+                {
+                    startPoint.X = endPoint.X = bound.Left + bound.Width / 2;
+                    startPoint.Y = bound.Top;
+                    endPoint.Y = bound.Bottom;
+                }
+                else
+                {
+                    startPoint.Y = endPoint.Y = bound.Top + bound.Height / 2;
+                    startPoint.X = bound.Left;
+                    endPoint.X = bound.Right;
+                }
+                g.DrawLine(dashedPen, startPoint, endPoint);
+                if (!checkSidePoint())
+                    return;
+
+                // construct list of control points
+                List<Point> controls = new List<Point>();
+                controls.Add(new Point(bound.Left + bound.Width / 2, bound.Top + bound.Height / 2));
+                if (horizontal)
+                {
+                    int dx = Math.Abs(controls[0].X - currentLocation.X);
+                    controls.Add(new Point(controls[0].X - dx, controls[0].Y));
+                    controls.Add(new Point(controls[0].X + dx, controls[0].Y));
+                    controls.Add(new Point(bound.Left, bound.Top));
+                    controls.Add(new Point(bound.Right, bound.Top));
+                    controls.Add(new Point(bound.Right, bound.Bottom));
+                    controls.Add(new Point(bound.Left, bound.Bottom));
+                }
+                else
+                {
+                    int dy = Math.Abs(controls[0].Y - currentLocation.Y);
+                    controls.Add(new Point(controls[0].X, controls[0].Y - dy));
+                    controls.Add(new Point(controls[0].X, controls[0].Y + dy));
+                    controls.Add(new Point(bound.Right, bound.Top));
+                    controls.Add(new Point(bound.Right, bound.Bottom));
+                    controls.Add(new Point(bound.Left, bound.Bottom));
+                    controls.Add(new Point(bound.Left, bound.Top));
+                }
+
+                // create temporary parabola and draw it with dashed pen
+                IDrawingObject hyper = new Hyperbola(controls, horizontal);
+                hyper.onDraw(g, dashedPen);
+            }
+
+            dashedPen.Dispose();
+        }
+
+        public override void reset(object sender)
+        {
+            firstSnap = false;
+            secondSnap = false;
+            sideChosen = false;
+            horizontal = true;
             (sender as Control).Invalidate();
         }
     }
@@ -1377,7 +1799,12 @@ namespace DrawingTools
 
             // else, user has specified new location
             // move object using offset from new to old location
-            chosenObject.changeControlPoint(index, location);
+            IDrawingObject changed = chosenObject.changeControlPoint(index, location);
+            if (!ReferenceEquals(changed, chosenObject))
+            {
+                //objectList.add(changed);
+                objectList.replace(chosenObject, changed);
+            }
             (sender as Control).Invalidate();
 
             // reset
@@ -1389,7 +1816,7 @@ namespace DrawingTools
             if (!controlSnap)
                 return;
 
-            location = e.Location;
+            location = chosenObject.invertRotation(e.Location);
             (sender as Control).Invalidate();
         }
 

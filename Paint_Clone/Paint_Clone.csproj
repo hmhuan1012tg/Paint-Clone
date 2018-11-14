@@ -33,9 +33,6 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="DrawingAlgorithms">
-      <HintPath>..\..\DrawingLineAlgorithms\DrawingAlgorithms\bin\Debug\DrawingAlgorithms.dll</HintPath>
-    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Xml.Linq" />
@@ -83,6 +80,10 @@
     <None Include="App.config" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\DrawingAlgorithms\DrawingAlgorithms.csproj">
+      <Project>{29fae3fa-115a-4c62-ad6f-ce4cb5b73426}</Project>
+      <Name>DrawingAlgorithms</Name>
+    </ProjectReference>
     <ProjectReference Include="..\DrawingObjects\DrawingObjects.csproj">
       <Project>{cb74f642-607f-485f-be5a-0462a2cbeb1a}</Project>
       <Name>DrawingObjects</Name>

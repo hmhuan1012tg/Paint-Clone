@@ -13,7 +13,7 @@ namespace DrawingObjects
 {
     public static class DrawingUtilities
     {
-        public const int CONTROL_RECT_SIZE = 6;
+        public const int CONTROL_RECT_SIZE = 10;
 
         // create rectangle object centered at point p
         public static Rectangle CreateControlRect(Point p)
@@ -79,7 +79,7 @@ namespace DrawingObjects
 
         // transformation
         // all transformation for drawing shape
-        private Matrix rotationMatrix = new Matrix();
+        protected Matrix rotationMatrix = new Matrix();
         public float angle = 0;
 
         public bool isFocused()
@@ -135,37 +135,23 @@ namespace DrawingObjects
 
             g.ResetTransform();
         }
-        public void onDraw(Graphics g, Matrix transform, Pen pen = null)
-        {
-            bool penNotSpecified = pen == null;
-            if (penNotSpecified)
-                pen = borderPen;
-
-            g.MultiplyTransform(transform);
-            derivedDraw(g, pen);
-
-            if (isFocused())
-            {
-                derivedDrawLineBetweenControlPoints(g);
-                g.ResetTransform();
-                drawControlRects(g, transform);
-            }
-
-            g.ResetTransform();
-        }
         public void onDraw(Graphics g, int index, Point location, Pen pen = null)
         {
             bool penNotSpecified = pen == null;
             if (penNotSpecified)
                 pen = borderPen;
 
+            g.MultiplyTransform(rotationMatrix);
             derivedDraw(g, pen, index, location);
 
             if (isFocused())
             {
                 derivedDrawLineBetweenControlPoints(g, index, location);
-                drawControlRects(g);
+                g.ResetTransform();
+                drawControlRects(g, rotationMatrix);
             }
+
+            g.ResetTransform();
         }
         // implements these to draw specific object
         protected abstract void derivedDraw(Graphics g, Pen pen);
@@ -186,14 +172,18 @@ namespace DrawingObjects
         public bool isVisible(Point location)
         {
             GraphicsPath gPath = new GraphicsPath();
+            GraphicsPath controlRectPath = new GraphicsPath();
             buildGraphicsPath(gPath);
             if (isFocused())
-                addControlRectsToGraphicPath(gPath);
+                addControlRectsToGraphicPath(controlRectPath);
 
             gPath.Transform(rotationMatrix);
+            controlRectPath.Transform(rotationMatrix);
             if (brush != null && isFillable)
-                return gPath.IsVisible(location);
-            return gPath.IsOutlineVisible(location, new Pen(Brushes.Black, 15));
+            {
+                return gPath.IsOutlineVisible(location, new Pen(Brushes.Black, 10)) || gPath.IsVisible(location) || controlRectPath.IsVisible(location);
+            }
+            return gPath.IsOutlineVisible(location, new Pen(Brushes.Black, 10)) || controlRectPath.IsVisible(location);
         }
         public int visibleControlPointIndex(Point location)
         {
@@ -202,7 +192,7 @@ namespace DrawingObjects
             {
                 gp.AddRectangle(DrawingUtilities.CreateControlRect(controlPoints[i]));
                 gp.Transform(rotationMatrix);
-                if (gp.IsOutlineVisible(location, new Pen(Brushes.Black, 10)))
+                if (gp.IsVisible(location))
                     return i;
                 gp.Reset();
             }
@@ -261,6 +251,13 @@ namespace DrawingObjects
         // using scaling factor
         public void scale(float xFactor, float yFactor)
         {
+            if (!canScale(xFactor, yFactor))
+            {
+                rotationMatrix.Reset();
+                rotationMatrix.RotateAt(angle, getCentralPoint());
+                return;
+            }
+
             Point central = getCentralPoint();
             Matrix scale = new Matrix();
             scale.Translate(central.X, central.Y);
@@ -273,6 +270,10 @@ namespace DrawingObjects
             rotationMatrix.RotateAt(angle, getCentralPoint());
         }
         protected virtual void derivedScale(float xFactor, float yFactor) { }
+        protected virtual bool canScale(float xFactor, float yFactor)
+        {
+            return true;
+        }
         public virtual Point getCentralPoint()
         {
             Point output = new Point();
@@ -331,6 +332,11 @@ namespace DrawingObjects
             for (int i = 0; i < list.Count; i++)
                 if (ReferenceEquals(oldObj, list[i]))
                     index = i;
+            if (index >= 0)
+            {
+                list.Insert(index, newObj);
+                list.Remove(oldObj);
+            }
         }
 
         public void drawAll(PaintEventArgs e)
@@ -440,22 +446,9 @@ namespace DrawingObjects
         }
         protected override void derivedDraw(Graphics g, Pen pen, int index, Point location)
         {
-            int fixedIndex = 0;
-            if (index == 0)
-                fixedIndex = 2;
-            else if (index == 1)
-                fixedIndex = 3;
-            else if (index == 3)
-                fixedIndex = 1;
-
-            int startX = Math.Min(location.X, controlPoints[fixedIndex].X);
-            int startY = Math.Min(location.Y, controlPoints[fixedIndex].Y);
-
-            int endX = Math.Max(location.X, controlPoints[fixedIndex].X);
-            int endY = Math.Max(location.Y, controlPoints[fixedIndex].Y);
-
-            Rectangle rect = new Rectangle(startX, startY, endX - startX, endY - startY);
-            g.DrawRectangle(pen, rect);
+            Point[] points = controlPoints.ToArray();
+            points[index] = location;
+            g.DrawPolygon(pen, points);
         }
 
         // choosing
@@ -474,26 +467,15 @@ namespace DrawingObjects
         // controlling
         public override IDrawingObject changeControlPoint(int index, Point newLocation)
         {
-            int fixedIndex = 0;
-            if (index == 0)
-                fixedIndex = 2;
-            else if (index == 1)
-                fixedIndex = 3;
-            else if (index == 3)
-                fixedIndex = 1;
+            controlPoints[index] = newLocation;
+            Point[] points = controlPoints.ToArray();
+            rotationMatrix.TransformPoints(points);
 
-            int startX = Math.Min(newLocation.X, controlPoints[fixedIndex].X);
-            int startY = Math.Min(newLocation.Y, controlPoints[fixedIndex].Y);
+            Polygon poly = new Polygon(new List<Point>(points), true);
+            poly.setBrush(brush);
+            poly.setOutlineColor(borderPen.Color);
 
-            int endX = Math.Max(newLocation.X, controlPoints[fixedIndex].X);
-            int endY = Math.Max(newLocation.Y, controlPoints[fixedIndex].Y);
-
-            controlPoints[0] = new Point(startX, startY);
-            controlPoints[1] = new Point(endX, startY);
-            controlPoints[2] = new Point(endX, endY);
-            controlPoints[3] = new Point(startX, endY);
-
-            return this;
+            return poly;
         }
     }
 
@@ -502,6 +484,7 @@ namespace DrawingObjects
     {
         public Parallelogram(Point[] controlPoints, bool isFocus = false)
         {
+            isFillable = true;
             this.controlPoints = new List<Point>();
             for (int i = 0; i < 4; i++)
                 this.controlPoints.Add(controlPoints[i]);
@@ -513,35 +496,15 @@ namespace DrawingObjects
         // drawing
         protected override void derivedDraw(Graphics g, Pen pen)
         {
+            if (isFillable && brush != null)
+                g.FillPolygon(brush, controlPoints.ToArray());
             g.DrawPolygon(pen, controlPoints.ToArray());
         }
         protected override void derivedDraw(Graphics g, Pen pen, int index, Point location)
         {
-            Point firstFixed = new Point();
-            Point secondFixed = new Point();
-            Point symmetricPoint = new Point(0, 0);
-
-            if (index == 0 || index == 2)
-            {
-                firstFixed = controlPoints[1];
-                secondFixed = controlPoints[3];
-            }
-            else if (index == 1 || index == 3)
-            {
-                firstFixed = controlPoints[0];
-                secondFixed = controlPoints[2];
-            }
-
-            symmetricPoint.X = firstFixed.X + secondFixed.X - location.X;
-            symmetricPoint.Y = firstFixed.Y + secondFixed.Y - location.Y;
-
-            List<Point> list = new List<Point>();
-            list.Add(location);
-            list.Add(firstFixed);
-            list.Add(symmetricPoint);
-            list.Add(secondFixed);
-
-            g.DrawPolygon(pen, list.ToArray());
+            Point[] points = controlPoints.ToArray();
+            points[index] = location;
+            g.DrawPolygon(pen, points);
         }
 
         // choosing
@@ -559,31 +522,15 @@ namespace DrawingObjects
         // controlling
         public override IDrawingObject changeControlPoint(int index, Point newLocation)
         {
-            Point firstFixed = new Point();
-            Point secondFixed = new Point();
-            Point symmetricPoint = new Point(0, 0);
+            controlPoints[index] = newLocation;
+            Point[] points = controlPoints.ToArray();
+            rotationMatrix.TransformPoints(points);
 
-            if (index == 0 || index == 2)
-            {
-                firstFixed = controlPoints[1];
-                secondFixed = controlPoints[3];
-            }
-            else if (index == 1 || index == 3)
-            {
-                firstFixed = controlPoints[0];
-                secondFixed = controlPoints[2];
-            }
+            Polygon poly = new Polygon(new List<Point>(points), true);
+            poly.setBrush(brush);
+            poly.setOutlineColor(borderPen.Color);
 
-            symmetricPoint.X = firstFixed.X + secondFixed.X - newLocation.X;
-            symmetricPoint.Y = firstFixed.Y + secondFixed.Y - newLocation.Y;
-
-            controlPoints.Clear();
-            controlPoints.Add(newLocation);
-            controlPoints.Add(firstFixed);
-            controlPoints.Add(symmetricPoint);
-            controlPoints.Add(secondFixed);
-
-            return this;
+            return poly;
         }
     }
 
@@ -592,6 +539,7 @@ namespace DrawingObjects
     {
         public Polygon(List<Point> controlPoints, bool isFocus = false)
         {
+            isFillable = true;
             if (controlPoints != null)
                 this.controlPoints = controlPoints;
             if (isFocus)
@@ -607,6 +555,8 @@ namespace DrawingObjects
         // drawing
         protected override void derivedDraw(Graphics g, Pen pen)
         {
+            if (brush != null && isFillable)
+                g.FillPolygon(brush, controlPoints.ToArray());
             g.DrawPolygon(pen, controlPoints.ToArray());
         }
         protected override void derivedDraw(Graphics g, Pen pen, int index, Point location)
@@ -776,16 +726,38 @@ namespace DrawingObjects
         }
         protected override void derivedDraw(Graphics g, Pen pen, int index, Point location)
         {
-            List<Point> list = new List<Point>();
-            for (int i = 0; i < controlPoints.Count; i++)
+            int other = index == 1 ? 2 : 1;
+            location = DrawingUtilities.Restrict(controlPoints[0], radius, location);
+            RectangleF rect = new RectangleF(controlPoints[0].X - radius, controlPoints[0].Y - radius, radius * 2, radius * 2);
+            float startAngle = 180 * DrawingUtilities.CalculateAngle(controlPoints[0], location) / (float)Math.PI;
+            float endAngle = 180 * DrawingUtilities.CalculateAngle(controlPoints[0], controlPoints[other]) / (float)Math.PI;
+            // if start angle is bigger than end angle
+            // swap them to make sure
+            // start angle is always smaller than end angle
+            if (startAngle > endAngle)
             {
-                if (i == index)
-                    list.Add(location);
-                else
-                    list.Add(controlPoints[i]);
+                float tempAngle = startAngle;
+                startAngle = endAngle;
+                endAngle = tempAngle;
             }
 
-            g.DrawLines(pen, list.ToArray());
+            int sweepSign = 1;
+            float sweepAngle = endAngle - startAngle;
+            if (smallPart && sweepAngle > (360 - sweepAngle))
+            {
+                sweepAngle = 360 - sweepAngle;
+                sweepSign = -1;
+            }
+            if (!smallPart && sweepAngle < (360 - sweepAngle))
+            {
+                sweepAngle = 360 - sweepAngle;
+                sweepSign = -1;
+            }
+            sweepAngle *= sweepSign;
+
+            g.DrawArc(pen, rect, startAngle, sweepAngle);
+            g.DrawLine(pen, controlPoints[0], location);
+            g.DrawLine(pen, controlPoints[0], controlPoints[other]);
         }
 
         // cloning
@@ -814,6 +786,14 @@ namespace DrawingObjects
 
             for (int i = 1; i < controlPoints.Count; i++)
                 controlPoints[i] = DrawingUtilities.Restrict(controlPoints[0], radius, controlPoints[i]);
+        }
+
+        // controlling
+        public override IDrawingObject changeControlPoint(int index, Point newLocation)
+        {
+            controlPoints[index] = DrawingUtilities.Restrict(controlPoints[0], radius, newLocation);
+
+            return this;
         }
     }
 
@@ -852,6 +832,31 @@ namespace DrawingObjects
         {
             g.DrawEllipse(pen, new Rectangle(controlPoints[0].X - radius, controlPoints[0].Y - radius, radius * 2, radius * 2));
         }
+        protected override void derivedDraw(Graphics g, Pen pen, int index, Point location)
+        {
+            float dx = Math.Abs(location.X - controlPoints[0].X);
+            float dy = Math.Abs(location.Y - controlPoints[0].Y);
+
+            RectangleF bound = new RectangleF();
+            if (index % 2 == 0)
+            {
+                bound.Width = 2 * dx;
+                bound.Height = 2 * dy;
+            }
+            else if (index == 1 || index == 5)
+            {
+                bound.Width = 2 * radius;
+                bound.Height = 2 * dy;
+            }
+            else
+            {
+                bound.Width = 2 * dx;
+                bound.Height = 2 * radius;
+            }
+            bound.Location = new PointF(controlPoints[0].X - bound.Width / 2, controlPoints[0].Y - bound.Height / 2);
+
+            g.DrawEllipse(pen, bound);
+        }
         protected override void derivedDrawLineBetweenControlPoints(Graphics g)
         {
             Pen dottedPen = new Pen(Color.Black, 1.0f);
@@ -871,6 +876,22 @@ namespace DrawingObjects
         public override bool controllablePoint(int index)
         {
             return index != 0;
+        }
+        public override IDrawingObject changeControlPoint(int index, Point newLocation)
+        {
+            float dx = Math.Abs(newLocation.X - controlPoints[0].X);
+            float dy = Math.Abs(newLocation.Y - controlPoints[0].Y);
+
+            Ellipse ellipse = null;
+            if (index % 2 == 0)
+                ellipse = new Ellipse(controlPoints[0], dx, dy, true);
+            else if (index == 1 || index == 5)
+                ellipse = new Ellipse(controlPoints[0], radius, dy, true);
+            else
+                ellipse = new Ellipse(controlPoints[0], dx, radius, true);
+            ellipse.rotate(angle);
+
+            return ellipse;
         }
 
         // scaling
@@ -930,6 +951,26 @@ namespace DrawingObjects
         {
             g.DrawEllipse(pen, new RectangleF(controlPoints[0].X - a, controlPoints[0].Y - b, 2 * a, 2 * b));
         }
+        protected override void derivedDraw(Graphics g, Pen pen, int index, Point location)
+        {
+            float dx = Math.Abs(location.X - controlPoints[0].X);
+            float dy = Math.Abs(location.Y - controlPoints[0].Y);
+
+            RectangleF bound = new RectangleF();
+            if (index % 2 == 0)
+            {
+                bound.Width = 2 * dx;
+                bound.Height = 2 * b;
+            }
+            else
+            {
+                bound.Width = 2 * a;
+                bound.Height = 2 * dy;
+            }
+            bound.Location = new PointF(controlPoints[0].X - bound.Width / 2, controlPoints[0].Y - bound.Height / 2);
+
+            g.DrawEllipse(pen, bound);
+        }
         protected override void derivedDrawLineBetweenControlPoints(Graphics g)
         {
             Pen dottedPen = new Pen(Color.Black, 1.0f);
@@ -949,6 +990,26 @@ namespace DrawingObjects
         public override bool controllablePoint(int index)
         {
             return index != 0;
+        }
+        public override IDrawingObject changeControlPoint(int index, Point newLocation)
+        {
+            float dx = Math.Abs(newLocation.X - controlPoints[0].X);
+            float dy = Math.Abs(newLocation.Y - controlPoints[0].Y);
+
+            if (index % 2 == 0)
+                a = dx;
+            else
+                b = dy;
+
+            Point center = controlPoints[0];
+            controlPoints.Clear();
+            controlPoints.Add(center);
+            controlPoints.Add(new Point(center.X, (int)(center.Y - b)));
+            controlPoints.Add(new Point((int)(center.X + a), center.Y));
+            controlPoints.Add(new Point(center.X, (int)(center.Y + b)));
+            controlPoints.Add(new Point((int)(center.X - a), center.Y));
+
+            return this;
         }
 
         // scaling
@@ -1052,6 +1113,41 @@ namespace DrawingObjects
                 g.DrawLine(dottedPen, controlPoints[0], controlPoints[i]);
             dottedPen.Dispose();
         }
+        protected override void derivedDraw(Graphics g, Pen pen, int index, Point location)
+        {
+            int other = index == 1 ? 2 : 1;
+            location = DrawingUtilities.Restrict(controlPoints[0], a, b, location);
+            RectangleF bound = new RectangleF(controlPoints[0].X - a, controlPoints[0].Y - b, 2 * a, 2 * b);
+
+            float startAngle = DrawingUtilities.CalculateAngle(controlPoints[0], location) * 180 / (float)Math.PI;
+            float endAngle = DrawingUtilities.CalculateAngle(controlPoints[0], controlPoints[other]) * 180 / (float)Math.PI;
+            // if start angle is bigger than end angle
+            // swap them to make sure start angle is always smaller than end angle
+            if (startAngle > endAngle)
+            {
+                float tempAngle = startAngle;
+                startAngle = endAngle;
+                endAngle = tempAngle;
+            }
+
+            int sweepSign = 1;
+            float sweepAngle = endAngle - startAngle;
+            if (smallPart && sweepAngle > 180)
+            {
+                sweepAngle = 360 - sweepAngle;
+                sweepSign = -1;
+            }
+            if (!smallPart && sweepAngle <= 180)
+            {
+                sweepAngle = 360 - sweepAngle;
+                sweepSign = -1;
+            }
+            sweepAngle *= sweepSign;
+
+            g.DrawArc(pen, bound, startAngle, sweepAngle);
+            g.DrawLine(pen, controlPoints[0], location);
+            g.DrawLine(pen, controlPoints[0], controlPoints[other]);
+        }
 
         // cloning
         protected override IDrawingObject derivedClone()
@@ -1079,6 +1175,14 @@ namespace DrawingObjects
             controlPoints[1] = DrawingUtilities.Restrict(controlPoints[0], a, b, controlPoints[1]);
             controlPoints[2] = DrawingUtilities.Restrict(controlPoints[0], a, b, controlPoints[2]);
         }
+
+        // controlling
+        public override IDrawingObject changeControlPoint(int index, Point newLocation)
+        {
+            controlPoints[index] = DrawingUtilities.Restrict(controlPoints[0], a, b, newLocation);
+
+            return this;
+        }
     }
 
     // Duong Bezier
@@ -1103,6 +1207,19 @@ namespace DrawingObjects
         {
             g.DrawBezier(pen, controlPoints[0], controlPoints[1], controlPoints[2], controlPoints[3]);
         }
+        protected override void derivedDraw(Graphics g, Pen pen, int index, Point location)
+        {
+            List<Point> list = new List<Point>();
+            for (int i = 0; i < controlPoints.Count; i++)
+            {
+                if (i == index)
+                    list.Add(location);
+                else
+                    list.Add(controlPoints[i]);
+            }
+
+            g.DrawBezier(pen, list[0], list[1], list[2], list[3]);
+        }
         protected override void derivedDrawLineBetweenControlPoints(Graphics g)
         {
             Pen dottedPen = new Pen(Color.Black, 1.0f);
@@ -1118,6 +1235,14 @@ namespace DrawingObjects
             foreach (var point in controlPoints)
                 newList.Add(new Point(point.X, point.Y));
             return new Bezier(newList);
+        }
+
+        // controlling
+        public override IDrawingObject changeControlPoint(int index, Point newLocation)
+        {
+            controlPoints[index] = newLocation;
+
+            return this;
         }
     }
 
@@ -1206,6 +1331,526 @@ namespace DrawingObjects
             controlPoints.Add(new Point(central.X + textSize.Width / 2, central.Y - textSize.Height / 2));
             controlPoints.Add(new Point(central.X + textSize.Width / 2, central.Y + textSize.Height / 2));
             controlPoints.Add(new Point(central.X - textSize.Width / 2, central.Y + textSize.Height / 2));
+        }
+    }
+
+    // Parabol
+    public class Parabola : IDrawingObject
+    {
+        DrawingAlgorithms.Parabola parabola;
+        DrawingAlgorithms.Algorithm algorithm;
+
+        public Parabola(List<Point> controlPoints, bool horizontal, bool isFocus = false)
+        {
+            this.controlPoints = controlPoints;
+
+            parabola = newParabola(controlPoints.ToArray(), horizontal);
+
+            // create algorithm
+            algorithm = new DrawingAlgorithms.MidPoint();
+
+            if (isFocus)
+                focus();
+        }
+
+        // Get half of parabola point list
+        // index = 0 : get first half
+        // index = 1 : get second half
+        private List<Point> getHalfOfParabola(DrawingAlgorithms.Parabola para, int index)
+        {
+            List<DrawingAlgorithms.Point2D> point2ds = algorithm.GeneratePoint2DList(para);
+            List<Point> half = new List<Point>();
+            for (int i = index; i < point2ds.Count; i += 2)
+                half.Add(new Point(point2ds[i].x, point2ds[i].y));
+            return half;
+        }
+        // create parabola from control points
+        protected DrawingAlgorithms.Parabola newParabola(Point[] points, bool horizontal)
+        {
+            // calculate parabola members
+            int dx = points[0].X - points[1].X;
+            int dy = points[0].Y - points[1].Y;
+            DrawingAlgorithms.Point2D pivot = new DrawingAlgorithms.Point2D(points[0].X, points[0].Y);
+            int a, b, limit;
+            DrawingAlgorithms.Orientation orientation;
+            if (horizontal)
+            {
+                a = dx;
+                b = dy * dy;
+                limit = -dx;
+                orientation = DrawingAlgorithms.Orientation.Horizontal;
+            }
+            else
+            {
+                a = dy;
+                b = dx * dx;
+                limit = -dy;
+                orientation = DrawingAlgorithms.Orientation.Vertical;
+            }
+            // create parabola
+            // and return it
+            DrawingAlgorithms.Parabola para = new DrawingAlgorithms.Parabola(pivot, a, b, limit, orientation);
+            return para;
+        }
+
+        // choosing
+        protected override void buildGraphicsPath(GraphicsPath gPath)
+        {
+            List<Point> firstHalf = getHalfOfParabola(parabola, 0);
+            firstHalf.Reverse();
+            gPath.AddLines(firstHalf.ToArray());
+            gPath.AddLines(getHalfOfParabola(parabola, 1).ToArray());
+        }
+
+        // drawing
+        protected override void derivedDraw(Graphics g, Pen pen)
+        {
+            GraphicsPath gPath = new GraphicsPath();
+            List<Point> firstHalf = getHalfOfParabola(parabola, 0);
+            firstHalf.Reverse();
+            gPath.AddLines(firstHalf.ToArray());
+            gPath.AddLines(getHalfOfParabola(parabola, 1).ToArray());
+            g.DrawPath(pen, gPath);
+        }
+        protected override void derivedDraw(Graphics g, Pen pen, int index, Point location)
+        {
+            bool horizontal = parabola.orientation == DrawingAlgorithms.Orientation.Horizontal;
+            if (Math.Abs(location.X - controlPoints[0].X) < 1 || Math.Abs(location.Y - controlPoints[0].Y) < 1)
+                return;
+
+            Point[] points = controlPoints.ToArray();
+            int other = index == 1 ? 2 : 1;
+            points[index] = location;
+            if (horizontal)
+            {
+                points[other].X = location.X;
+                points[other].Y = 2 * controlPoints[0].Y - location.Y;
+            }
+            else
+            {
+                points[other].Y = location.Y;
+                points[other].X = 2 * controlPoints[0].X - location.X;
+            }
+
+            // create temporary parabola
+            DrawingAlgorithms.Parabola para = newParabola(points, horizontal);
+
+            // draw it
+            GraphicsPath gPath = new GraphicsPath();
+            List<Point> firstHalf = getHalfOfParabola(para, 0);
+            firstHalf.Reverse();
+            gPath.AddLines(firstHalf.ToArray());
+            gPath.AddLines(getHalfOfParabola(para, 1).ToArray());
+            g.DrawPath(pen, gPath);
+        }
+
+        // cloning
+        protected override IDrawingObject derivedClone()
+        {
+            List<Point> points = controlPoints.ToList();
+            return new Parabola(points, parabola.orientation == DrawingAlgorithms.Orientation.Horizontal);
+        }
+
+        // scaling
+        public override Point getCentralPoint()
+        {
+            return controlPoints[0];
+        }
+        protected override void derivedScale(float xFactor, float yFactor)
+        {
+            base.derivedScale(xFactor, yFactor);
+
+            bool horizontal = parabola.orientation == DrawingAlgorithms.Orientation.Horizontal;
+            parabola =  newParabola(controlPoints.ToArray(), horizontal);
+        }
+        protected override bool canScale(float xFactor, float yFactor)
+        {
+            int a, b, limit;
+            if (parabola.orientation == DrawingAlgorithms.Orientation.Horizontal)
+            {
+                a = (int)(xFactor * xFactor * parabola.a);
+                b = (int)(yFactor * parabola.b);
+                limit = (int)(xFactor * parabola.limit);
+            }
+            else
+            {
+                a = (int)(yFactor * parabola.a);
+                b = (int)(xFactor * xFactor * parabola.b);
+                limit = (int)(yFactor * parabola.limit);
+            }
+
+            return a != 0 && b != 0 && limit != 0;
+        }
+
+        // controlling
+        public override bool controllablePoint(int index)
+        {
+            return index != 0;
+        }
+        public override IDrawingObject changeControlPoint(int index, Point newLocation)
+        {
+            bool horizontal = parabola.orientation == DrawingAlgorithms.Orientation.Horizontal;
+            if (Math.Abs(newLocation.X - controlPoints[0].X) < 1 || Math.Abs(newLocation.Y - controlPoints[0].Y) < 1)
+                return this;
+
+            Point[] points = controlPoints.ToArray();
+            int other = index == 1 ? 2 : 1;
+            points[index] = newLocation;
+            if (horizontal)
+            {
+                points[other].X = newLocation.X;
+                points[other].Y = 2 * controlPoints[0].Y - newLocation.Y;
+            }
+            else
+            {
+                points[other].Y = newLocation.Y;
+                points[other].X = 2 * controlPoints[0].X - newLocation.X;
+            }
+
+            controlPoints[index] = newLocation;
+            controlPoints[other] = points[other];
+            parabola = newParabola(points, horizontal);
+
+            return this;
+        }
+    }
+
+    // Hyperbola
+    public class Hyperbola : IDrawingObject
+    {
+        DrawingAlgorithms.Hyperbola hyperbola;
+        DrawingAlgorithms.Algorithm algorithm;
+
+        public Hyperbola(List<Point> controlPoints, bool horizontal, bool isFocus = false)
+        {
+            this.controlPoints = controlPoints;
+
+            hyperbola = newHyperbola(controlPoints.ToArray(), horizontal);
+
+            // create algorithm
+            algorithm = new DrawingAlgorithms.MidPoint();
+
+            if (isFocus)
+                focus();
+        }
+
+        // Get quarter of parabola point list
+        // index = 0 : get first quarter
+        // index = 1 : get second quarter
+        // index = 2 : get third quarter
+        // index = 3 : get final quarter
+        private List<Point> getQuarterOfHyperbola(DrawingAlgorithms.Hyperbola hyper, int index)
+        {
+            List<DrawingAlgorithms.Point2D> point2ds = algorithm.GeneratePoint2DList(hyper);
+            List<Point> quarter = new List<Point>();
+            for (int i = index; i < point2ds.Count; i += 4)
+                quarter.Add(new Point(point2ds[i].x, point2ds[i].y));
+            return quarter;
+        }
+        // create parabola from control points
+        protected DrawingAlgorithms.Hyperbola newHyperbola(Point[] points, bool horizontal)
+        {
+            int a, b, limit;
+            int dx = points[3].X - points[0].X;
+            int dy = points[3].Y - points[0].Y;
+            DrawingAlgorithms.Orientation orientation;
+            if (!horizontal)
+            {
+                a = points[0].Y - points[1].Y;
+                double temp = (dy * dy * 1.0f / (a * a) - 1);
+                b = (int)Math.Sqrt(dx * dx / temp);
+                limit = Math.Abs(dy);
+                orientation = DrawingAlgorithms.Orientation.Vertical;
+            }
+            else
+            {
+                a = points[0].X - points[1].X;
+                double temp = (dx * dx * 1.0f / (a * a) - 1);
+                b = (int)Math.Sqrt(dy * dy / temp);
+                limit = Math.Abs(dx);
+                orientation = DrawingAlgorithms.Orientation.Horizontal;
+            }
+
+            DrawingAlgorithms.Point2D center = new DrawingAlgorithms.Point2D(points[0].X, points[0].Y);
+            DrawingAlgorithms.Hyperbola hyper = new DrawingAlgorithms.Hyperbola(center, a, b, limit, orientation);
+            return hyper;
+        }
+
+        // choosing
+        protected override void buildGraphicsPath(GraphicsPath gPath)
+        {
+            bool horizontal = hyperbola.orientation == DrawingAlgorithms.Orientation.Horizontal;
+            GraphicsPath firstPath = new GraphicsPath();
+            GraphicsPath secondPath = new GraphicsPath();
+
+            int[] order = horizontal ? new int[] { 0, 2, 1, 3 } : new int[] { 0, 1, 2, 3 };
+
+            // first quarter
+            List<Point> quarter = getQuarterOfHyperbola(hyperbola, order[0]);
+            quarter.Reverse();
+            firstPath.AddLines(quarter.ToArray());
+            // second quarter
+            quarter = getQuarterOfHyperbola(hyperbola, order[1]);
+            firstPath.AddLines(quarter.ToArray());
+
+            // third quarter
+            quarter = getQuarterOfHyperbola(hyperbola, order[2]);
+            quarter.Reverse();
+            secondPath.AddLines(quarter.ToArray());
+            // final quarter
+            quarter = getQuarterOfHyperbola(hyperbola, order[3]);
+            secondPath.AddLines(quarter.ToArray());
+
+            gPath.AddPath(firstPath, false);
+            gPath.AddPath(secondPath, false);
+        }
+
+        // drawing
+        protected override void derivedDraw(Graphics g, Pen pen)
+        {
+            hyperbola.center = new DrawingAlgorithms.Point2D(controlPoints[0].X, controlPoints[0].Y);
+            bool horizontal = hyperbola.orientation == DrawingAlgorithms.Orientation.Horizontal;
+            GraphicsPath firstPath = new GraphicsPath();
+            GraphicsPath secondPath = new GraphicsPath();
+
+            int[] order = horizontal ? new int[] { 0, 2, 1, 3 } : new int[] { 0, 1, 2, 3 };
+
+            // first quarter
+            List<Point> quarter = getQuarterOfHyperbola(hyperbola, order[0]);
+            quarter.Reverse();
+            firstPath.AddLines(quarter.ToArray());
+            // second quarter
+            quarter = getQuarterOfHyperbola(hyperbola, order[1]);
+            firstPath.AddLines(quarter.ToArray());
+
+            // third quarter
+            quarter = getQuarterOfHyperbola(hyperbola, order[2]);
+            quarter.Reverse();
+            secondPath.AddLines(quarter.ToArray());
+            // final quarter
+            quarter = getQuarterOfHyperbola(hyperbola, order[3]);
+            secondPath.AddLines(quarter.ToArray());
+
+            // draw
+            g.DrawPath(pen, firstPath);
+            g.DrawPath(pen, secondPath);
+        }
+        protected override void derivedDraw(Graphics g, Pen pen, int index, Point location)
+        {
+            bool horizontal = hyperbola.orientation == DrawingAlgorithms.Orientation.Horizontal;
+            Point[] points = controlPoints.ToArray();
+
+            if (index < 3)
+            {
+                int other = index == 1 ? 2 : 1;
+                if (!horizontal)
+                {
+                    int minY = Math.Min(points[index + 2].Y, points[0].Y);
+                    int maxY = Math.Max(points[index + 2].Y, points[0].Y);
+                    if (location.Y <= minY || location.Y >= maxY)
+                        return;
+                    points[index].Y = location.Y;
+                    points[other].Y = 2 * points[0].Y - location.Y;
+                }
+                else
+                {
+                    int minX = Math.Min(points[index + 2].X, points[0].X);
+                    int maxX = Math.Max(points[index + 2].X, points[0].X);
+                    if (location.X <= minX || location.X >= maxX)
+                        return;
+                    points[index].X = location.X;
+                    points[other].X = 2 * points[0].X - location.X;
+                }
+            }
+            else
+            {
+                int startX = Math.Min(location.X, 2 * points[0].X - location.X);
+                int startY = Math.Min(location.Y, 2 * points[0].Y - location.Y);
+                int endX = Math.Max(location.X, 2 * points[0].X - location.X);
+                int endY = Math.Max(location.Y, 2 * points[0].Y - location.Y);
+                if (!horizontal)
+                {
+                    int minY = points[1].Y;
+                    int maxY = points[2].Y;
+                    if (location.Y >= minY && location.Y <= maxY)
+                        return;
+
+                    // 6 - 3
+                    // |   |
+                    // 5 - 4
+                    points[3] = new Point(endX, startY);
+                    points[4] = new Point(endX, endY);
+                    points[5] = new Point(startX, endY);
+                    points[6] = new Point(startX, startY);
+                }
+                else
+                {
+                    int minX = points[1].X;
+                    int maxX = points[2].X;
+                    if (location.X >= minX && location.X <= maxX)
+                        return;
+
+                    // 3 - 4
+                    // |   |
+                    // 6 - 5
+                    points[3] = new Point(startX, startY);
+                    points[4] = new Point(endX, startY);
+                    points[5] = new Point(endX, endY);
+                    points[6] = new Point(startX, endY);
+                }
+            }
+
+            // create temporary parabola
+            DrawingAlgorithms.Hyperbola hyper = newHyperbola(points, horizontal);
+
+            // draw it
+            GraphicsPath firstPath = new GraphicsPath();
+            GraphicsPath secondPath = new GraphicsPath();
+
+            int[] order = horizontal ? new int[] { 0, 2, 1, 3 } : new int[] { 0, 1, 2, 3 };
+
+            // first quarter
+            List<Point> quarter = getQuarterOfHyperbola(hyper, order[0]);
+            quarter.Reverse();
+            firstPath.AddLines(quarter.ToArray());
+            // second quarter
+            quarter = getQuarterOfHyperbola(hyper, order[1]);
+            firstPath.AddLines(quarter.ToArray());
+
+            // third quarter
+            quarter = getQuarterOfHyperbola(hyper, order[2]);
+            quarter.Reverse();
+            secondPath.AddLines(quarter.ToArray());
+            // final quarter
+            quarter = getQuarterOfHyperbola(hyper, order[3]);
+            secondPath.AddLines(quarter.ToArray());
+
+            // draw
+            g.DrawPath(pen, firstPath);
+            g.DrawPath(pen, secondPath);
+        }
+        protected override void derivedDrawLineBetweenControlPoints(Graphics g)
+        {
+            Pen dottedPen = new Pen(Color.Black, 1.0f);
+            dottedPen.DashStyle = DashStyle.Dot;
+            g.DrawLine(dottedPen, controlPoints[0], controlPoints[1]);
+            g.DrawLine(dottedPen, controlPoints[0], controlPoints[2]);
+            dottedPen.Dispose();
+        }
+
+        // cloning
+        protected override IDrawingObject derivedClone()
+        {
+            List<Point> points = controlPoints.ToList();
+            return new Hyperbola(points, hyperbola.orientation == DrawingAlgorithms.Orientation.Horizontal);
+        }
+
+        // scaling
+        public override Point getCentralPoint()
+        {
+            return controlPoints[0];
+        }
+        protected override void derivedScale(float xFactor, float yFactor)
+        {
+            base.derivedScale(xFactor, yFactor);
+            bool horizontal = hyperbola.orientation == DrawingAlgorithms.Orientation.Horizontal;
+            hyperbola = newHyperbola(controlPoints.ToArray(), horizontal);
+        }
+        protected override bool canScale(float xFactor, float yFactor)
+        {
+            int minWidth, minHeight;
+            if (hyperbola.orientation == DrawingAlgorithms.Orientation.Horizontal)
+            {
+                minWidth = (int)(xFactor * hyperbola.a);
+                minHeight = (int)(yFactor * (controlPoints[5].Y - controlPoints[4].Y));
+            }
+            else
+            {
+                minHeight = (int)(xFactor * hyperbola.a);
+                minWidth = (int)(yFactor * (controlPoints[4].X - controlPoints[5].X));
+            }
+
+            return minWidth > 0 && minHeight > 0;
+        }
+
+        // controlling
+        public override bool controllablePoint(int index)
+        {
+            return index != 0;
+        }
+        public override IDrawingObject changeControlPoint(int index, Point newLocation)
+        {
+            bool horizontal = hyperbola.orientation == DrawingAlgorithms.Orientation.Horizontal;
+            Point[] points = controlPoints.ToArray();
+
+            if (index < 3)
+            {
+                int other = index == 1 ? 2 : 1;
+                if (!horizontal)
+                {
+                    int minY = Math.Min(points[index + 2].Y, points[0].Y);
+                    int maxY = Math.Max(points[index + 2].Y, points[0].Y);
+                    if (newLocation.Y <= minY || newLocation.Y >= maxY)
+                        return this;
+                    points[index].Y = newLocation.Y;
+                    points[other].Y = 2 * points[0].Y - newLocation.Y;
+                }
+                else
+                {
+                    int minX = Math.Min(points[index + 2].X, points[0].X);
+                    int maxX = Math.Max(points[index + 2].X, points[0].X);
+                    if (newLocation.X <= minX || newLocation.X >= maxX)
+                        return this;
+                    points[index].X = newLocation.X;
+                    points[other].X = 2 * points[0].X - newLocation.X;
+                }
+            }
+            else
+            {
+                int startX = Math.Min(newLocation.X, 2 * points[0].X - newLocation.X);
+                int startY = Math.Min(newLocation.Y, 2 * points[0].Y - newLocation.Y);
+                int endX = Math.Max(newLocation.X, 2 * points[0].X - newLocation.X);
+                int endY = Math.Max(newLocation.Y, 2 * points[0].Y - newLocation.Y);
+                if (!horizontal)
+                {
+                    int minY = points[1].Y;
+                    int maxY = points[2].Y;
+                    if (newLocation.Y >= minY && newLocation.Y <= maxY)
+                        return this;
+
+                    // 6 - 3
+                    // |   |
+                    // 5 - 4
+                    points[3] = new Point(endX, startY);
+                    points[4] = new Point(endX, endY);
+                    points[5] = new Point(startX, endY);
+                    points[6] = new Point(startX, startY);
+                }
+                else
+                {
+                    int minX = points[1].X;
+                    int maxX = points[2].X;
+                    if (newLocation.X >= minX && newLocation.X <= maxX)
+                        return this;
+
+                    // 3 - 4
+                    // |   |
+                    // 6 - 5
+                    points[3] = new Point(startX, startY);
+                    points[4] = new Point(endX, startY);
+                    points[5] = new Point(endX, endY);
+                    points[6] = new Point(startX, endY);
+                }
+            }
+
+            // create temporary parabola
+            hyperbola = newHyperbola(points, horizontal);
+
+            // apply changes to control points
+            for (int i = 1; i < 7; i++)
+                controlPoints[i] = points[i];
+
+            return this;
         }
     }
 }

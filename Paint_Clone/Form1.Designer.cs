@@ -47,6 +47,8 @@
             this.controlRadio = new System.Windows.Forms.RadioButton();
             this.scaleRadio = new System.Windows.Forms.RadioButton();
             this.rotateRadio = new System.Windows.Forms.RadioButton();
+            this.parabolaRadio = new System.Windows.Forms.RadioButton();
+            this.hyperbolaRadio = new System.Windows.Forms.RadioButton();
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox1)).BeginInit();
             this.SuspendLayout();
             // 
@@ -92,7 +94,7 @@
             // rectRadio
             // 
             this.rectRadio.AutoSize = true;
-            this.rectRadio.Location = new System.Drawing.Point(63, 12);
+            this.rectRadio.Location = new System.Drawing.Point(100, 12);
             this.rectRadio.Name = "rectRadio";
             this.rectRadio.Size = new System.Drawing.Size(74, 17);
             this.rectRadio.TabIndex = 3;
@@ -104,7 +106,7 @@
             // parallelogramRadio
             // 
             this.parallelogramRadio.AutoSize = true;
-            this.parallelogramRadio.Location = new System.Drawing.Point(143, 12);
+            this.parallelogramRadio.Location = new System.Drawing.Point(100, 35);
             this.parallelogramRadio.Name = "parallelogramRadio";
             this.parallelogramRadio.Size = new System.Drawing.Size(88, 17);
             this.parallelogramRadio.TabIndex = 4;
@@ -116,7 +118,7 @@
             // polygonRadio
             // 
             this.polygonRadio.AutoSize = true;
-            this.polygonRadio.Location = new System.Drawing.Point(237, 12);
+            this.polygonRadio.Location = new System.Drawing.Point(180, 12);
             this.polygonRadio.Name = "polygonRadio";
             this.polygonRadio.Size = new System.Drawing.Size(63, 17);
             this.polygonRadio.TabIndex = 5;
@@ -128,7 +130,7 @@
             // brokenLineRadio
             // 
             this.brokenLineRadio.AutoSize = true;
-            this.brokenLineRadio.Location = new System.Drawing.Point(306, 12);
+            this.brokenLineRadio.Location = new System.Drawing.Point(12, 35);
             this.brokenLineRadio.Name = "brokenLineRadio";
             this.brokenLineRadio.Size = new System.Drawing.Size(82, 17);
             this.brokenLineRadio.TabIndex = 6;
@@ -140,7 +142,7 @@
             // circleArcRadio
             // 
             this.circleArcRadio.AutoSize = true;
-            this.circleArcRadio.Location = new System.Drawing.Point(394, 12);
+            this.circleArcRadio.Location = new System.Drawing.Point(310, 12);
             this.circleArcRadio.Name = "circleArcRadio";
             this.circleArcRadio.Size = new System.Drawing.Size(70, 17);
             this.circleArcRadio.TabIndex = 7;
@@ -152,7 +154,7 @@
             // circleRadio
             // 
             this.circleRadio.AutoSize = true;
-            this.circleRadio.Location = new System.Drawing.Point(470, 12);
+            this.circleRadio.Location = new System.Drawing.Point(249, 12);
             this.circleRadio.Name = "circleRadio";
             this.circleRadio.Size = new System.Drawing.Size(51, 17);
             this.circleRadio.TabIndex = 8;
@@ -164,7 +166,7 @@
             // ellipseRadio
             // 
             this.ellipseRadio.AutoSize = true;
-            this.ellipseRadio.Location = new System.Drawing.Point(527, 12);
+            this.ellipseRadio.Location = new System.Drawing.Point(249, 35);
             this.ellipseRadio.Name = "ellipseRadio";
             this.ellipseRadio.Size = new System.Drawing.Size(55, 17);
             this.ellipseRadio.TabIndex = 9;
@@ -176,7 +178,7 @@
             // ellipseArcRadio
             // 
             this.ellipseArcRadio.AutoSize = true;
-            this.ellipseArcRadio.Location = new System.Drawing.Point(588, 12);
+            this.ellipseArcRadio.Location = new System.Drawing.Point(310, 35);
             this.ellipseArcRadio.Name = "ellipseArcRadio";
             this.ellipseArcRadio.Size = new System.Drawing.Size(74, 17);
             this.ellipseArcRadio.TabIndex = 10;
@@ -188,7 +190,7 @@
             // bezierRadio
             // 
             this.bezierRadio.AutoSize = true;
-            this.bezierRadio.Location = new System.Drawing.Point(668, 12);
+            this.bezierRadio.Location = new System.Drawing.Point(390, 12);
             this.bezierRadio.Name = "bezierRadio";
             this.bezierRadio.Size = new System.Drawing.Size(54, 17);
             this.bezierRadio.TabIndex = 11;
@@ -210,7 +212,7 @@
             // newTextRadio
             // 
             this.newTextRadio.AutoSize = true;
-            this.newTextRadio.Location = new System.Drawing.Point(728, 12);
+            this.newTextRadio.Location = new System.Drawing.Point(523, 12);
             this.newTextRadio.Name = "newTextRadio";
             this.newTextRadio.Size = new System.Drawing.Size(71, 17);
             this.newTextRadio.TabIndex = 13;
@@ -279,12 +281,38 @@
             this.rotateRadio.UseVisualStyleBackColor = true;
             this.rotateRadio.CheckedChanged += new System.EventHandler(this.radio_CheckedChanged);
             // 
+            // parabolaRadio
+            // 
+            this.parabolaRadio.AutoSize = true;
+            this.parabolaRadio.Location = new System.Drawing.Point(450, 12);
+            this.parabolaRadio.Name = "parabolaRadio";
+            this.parabolaRadio.Size = new System.Drawing.Size(67, 17);
+            this.parabolaRadio.TabIndex = 19;
+            this.parabolaRadio.TabStop = true;
+            this.parabolaRadio.Text = "Parabola";
+            this.parabolaRadio.UseVisualStyleBackColor = true;
+            this.parabolaRadio.CheckedChanged += new System.EventHandler(this.radio_CheckedChanged);
+            // 
+            // hyperbolaRadio
+            // 
+            this.hyperbolaRadio.AutoSize = true;
+            this.hyperbolaRadio.Location = new System.Drawing.Point(450, 35);
+            this.hyperbolaRadio.Name = "hyperbolaRadio";
+            this.hyperbolaRadio.Size = new System.Drawing.Size(73, 17);
+            this.hyperbolaRadio.TabIndex = 20;
+            this.hyperbolaRadio.TabStop = true;
+            this.hyperbolaRadio.Text = "Hyperbola";
+            this.hyperbolaRadio.UseVisualStyleBackColor = true;
+            this.hyperbolaRadio.CheckedChanged += new System.EventHandler(this.radio_CheckedChanged);
+            // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.SystemColors.ControlLight;
             this.ClientSize = new System.Drawing.Size(1184, 661);
+            this.Controls.Add(this.hyperbolaRadio);
+            this.Controls.Add(this.parabolaRadio);
             this.Controls.Add(this.rotateRadio);
             this.Controls.Add(this.scaleRadio);
             this.Controls.Add(this.controlRadio);
@@ -338,6 +366,8 @@
         private System.Windows.Forms.RadioButton controlRadio;
         private System.Windows.Forms.RadioButton scaleRadio;
         private System.Windows.Forms.RadioButton rotateRadio;
+        private System.Windows.Forms.RadioButton parabolaRadio;
+        private System.Windows.Forms.RadioButton hyperbolaRadio;
     }
 }
 

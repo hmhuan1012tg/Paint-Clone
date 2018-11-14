@@ -105,6 +105,16 @@ namespace Paint_Clone
                 tool = new CreateTextTool(objectList);
                 usedCursor = Cursors.IBeam;
             }
+            else if (parabolaRadio.Checked)
+            {
+                tool = new ParabolaTool(objectList);
+                usedCursor = Cursors.Cross;
+            }
+            else if (hyperbolaRadio.Checked)
+            {
+                tool = new HyperbolaTool(objectList);
+                usedCursor = Cursors.Cross;
+            }
 
             // Manipulation Tools
             else if (selectRadio.Checked)
